@@ -1,5 +1,16 @@
-# Python artifacts and local environment for the backend
-backend/.env
-backend/__pycache__/
-backend/.venv/
-*.pyc
+# Entornos virtuales de Python en cualquier subcarpeta
+**/__pycache__/
+**/.venv/
+**/*.pyc
+
+# Node / React (Frontend)
+**/node_modules/
+**/dist/
+
+# Archivos de entorno (Seguridad)
+**/.env
+**/.env.local
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db

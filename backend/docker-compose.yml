@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 1. Base de datos principal (PostgreSQL)
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: la_camisa_negra_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: la_camisa_negra
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+  # 2. Caché y Sesiones (Redis)
+  redis_cache:
+    image: redis:7-alpine
+    container_name: la_camisa_negra_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+
+  # 3. Base de datos Vectorial (ChromaDB para el chatbot RAG)
+  chroma_db:
+    image: chromadb/chroma:latest
+    container_name: la_camisa_negra_chroma
+    restart: always
+    environment:
+      - IS_PERSISTENT=TRUE
+    ports:
+      # El contenedor usa el 8000, pero lo exponemos en el 8003 
+      # para dejar el 8000 libre para tu FastAPI
+      - "8003:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - app_network
+
+# Declaración de volúmenes persistentes
+volumes:
+  postgres_data:
+  redis_data:
+  chroma_data:
+
+# Red compartida para que los futuros microservicios se comuniquen con las BDs
+networks:
+  app_network:
+    driver: bridge
