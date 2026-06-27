@@ -1,18 +1,16 @@
 import './App.css'
-import {BrowserRouter} from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
 import { Routes, Route } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
-import { useState } from 'react'
-
+import Callback from './pages/Callback'  // <-- agrega este
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
     <BrowserRouter>
       <Routes>
-      <Route path="/"          element={<Login />} />
+        <Route path="/"          element={<Login />} />
+        <Route path="/callback"  element={<Callback />} />  {/* <-- y esta ruta */}
         <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>

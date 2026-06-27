@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8003
 
+    SECRET_KEY: str = ""
+    ALGORITHM: str = "HS256"    
+
     class Config:
         env_file = Path(__file__).resolve().parent.parent.parent / ".env"
         extra = "ignore"  # <-- ESTA ES LA LÍNEA MÁGICA QUE SOLUCIONA EL ERROR

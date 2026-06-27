@@ -1,6 +1,8 @@
 function Login() {
-  const handleLogin = () => {
-    window.location.href = 'http://localhost:8000/login'
+  const handleLogin = async () => {
+    const res = await fetch("http://localhost:8000/auth/login-url");
+    const data = await res.json();
+    window.location.href = data.url;
   }
 
   return (

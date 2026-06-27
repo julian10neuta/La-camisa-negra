@@ -1,6 +1,7 @@
 # Entornos virtuales de Python en cualquier subcarpeta
 **/__pycache__/
 **/.venv/
+**/venv/
 **/*.pyc
 
 # Node / React (Frontend)
