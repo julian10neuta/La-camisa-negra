@@ -1,7 +1,6 @@
 version: '3.8'
-
 services:
-  # 1. Base de datos principal (PostgreSQL)
+
   postgres_db:
     image: postgres:15-alpine
     container_name: la_camisa_negra_postgres
@@ -17,7 +16,6 @@ services:
     networks:
       - app_network
 
-  # 2. Caché y Sesiones (Redis)
   redis_cache:
     image: redis:7-alpine
     container_name: la_camisa_negra_redis
@@ -29,7 +27,6 @@ services:
     networks:
       - app_network
 
-  # 3. Base de datos Vectorial (ChromaDB para el chatbot RAG)
   chroma_db:
     image: chromadb/chroma:latest
     container_name: la_camisa_negra_chroma
@@ -37,21 +34,55 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
     ports:
-      # El contenedor usa el 8000, pero lo exponemos en el 8003 
-      # para dejar el 8000 libre para tu FastAPI
       - "8003:8000"
     volumes:
       - chroma_data:/chroma/chroma
     networks:
       - app_network
 
-# Declaración de volúmenes persistentes
+  authentication_service:
+    build:
+      context: ./backend
+      dockerfile: authentication_service/Dockerfile
+    container_name: la_camisa_negra_auth
+    restart: always
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/authentication_service:/app/authentication_service
+      - ./backend/shared:/app/shared
+    depends_on:
+      - postgres_db
+    networks:
+      - app_network
+
+  api_gateway:
+    build:
+      context: ./backend
+      dockerfile: api_gateway/Dockerfile
+    container_name: la_camisa_negra_gateway
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/api_gateway:/app/api_gateway
+      - ./backend/shared:/app/shared
+    depends_on:
+      - postgres_db
+      - redis_cache
+      - authentication_service
+    networks:
+      - app_network
+
 volumes:
   postgres_data:
   redis_data:
   chroma_data:
 
-# Red compartida para que los futuros microservicios se comuniquen con las BDs
 networks:
   app_network:
     driver: bridge

@@ -15,7 +15,7 @@ app.add_middleware(
 
 #Hay que cambiar para cuando usemos docker
 SERVICES = {
-    "auth": "http://localhost:8001", 
+    "auth": "http://authentication_service:8001",
     # "music": "http://localhost:8002",  # Lo agregaremos después
 }
 
@@ -54,9 +54,16 @@ async def proxy_auth(path: str, request: Request):
         except httpx.RequestError as exc:
             raise HTTPException(status_code=503, detail=f"El servicio de autenticación no está disponible: {exc}")
 
-    # 4. Devolvemos la respuesta exacta al Frontend
+    headers_to_forward = {
+    key: value 
+    for key, value in response.headers.items()
+    if key.lower() != "set-cookie"
+    }
+
     return Response(
         content=response.content,
         status_code=response.status_code,
-        headers=dict(response.headers)
-    )
+        headers=headers_to_forward
+    )   
+
+    

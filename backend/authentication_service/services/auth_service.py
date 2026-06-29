@@ -1,7 +1,7 @@
 # authentication_service/services/auth_service.py
 
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from ..repositories.user_repository import UserRepository
 from ..utils.jwt_utils import create_access_token
@@ -16,8 +16,9 @@ class AuthService:
         self.me_url = "https://api.spotify.com/v1/me"
 
     async def get_user_from_code(self, code: str):
-        # 1. Obtener tokens de Spotify
+        # Todo se ejecuta de forma secuencial dentro del bloque AsyncClient
         async with httpx.AsyncClient() as client:
+            # 1. Obtener tokens de Spotify
             payload = {
                 "grant_type": "authorization_code",
                 "code": code,
@@ -27,10 +28,15 @@ class AuthService:
             }
             token_resp = await client.post(self.token_url, data=payload)
             token_data = token_resp.json()
+            print("Respuesta de Spotify:", token_data)
 
-            # 2. Obtener perfil de Spotify
-            user_resp = await client.get(self.me_url, headers={"Authorization": f"Bearer {token_data['access_token']}"})
+            # 2. Obtener perfil de Spotify (Ahora sí está en orden)
+            user_resp = await client.get(
+                self.me_url, 
+                headers={"Authorization": f"Bearer {token_data['access_token']}"}
+            )
             user_info = user_resp.json()
+            print("Info usuario:", user_info)
 
             # 3. Guardar en Postgres vía Repositorio
             user_data = {
@@ -38,7 +44,8 @@ class AuthService:
                 "name": user_info.get("display_name"),
                 "access_token": token_data["access_token"],
                 "refresh_token": token_data["refresh_token"],
-                "token_expiry": datetime.utcnow() + timedelta(seconds=token_data["expires_in"]),
+                # Usamos timezone.utc para evitar el aviso de obsolescencia de utcnow
+                "token_expiry": datetime.now(timezone.utc) + timedelta(seconds=token_data["expires_in"]),
                 "is_premium": user_info.get("product") == "premium"
             }
             user = UserRepository.create_or_update_user(self.db, user_data)

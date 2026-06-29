@@ -10,18 +10,28 @@ function Dashboard() {
     const userData = localStorage.getItem('user')
     
     if (!token) {
-      navigate('/') // si no hay token, vuelve al login
+      navigate('/')
       return
     }
 
     setUser(JSON.parse(userData))
   }, [navigate])
 
+  const handleLogout = async () => {
+    await fetch("http://127.0.0.1:8000/auth/logout", { method: "POST" })
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
+    navigate('/')
+  }
+
   return (
     <div>
       <h1>Dashboard</h1>
       {user ? (
-        <p>Bienvenido, {user.name}</p>
+        <>
+          <p>Bienvenido, {user.name}</p>
+          <button onClick={handleLogout}>Cerrar sesión</button>
+        </>
       ) : (
         <p>Cargando...</p>
       )}

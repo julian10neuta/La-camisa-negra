@@ -47,3 +47,11 @@ class UserRepository:
         db.commit()
         db.refresh(user)
         return user
+    
+    @staticmethod
+    def update_tokens(db: Session, user: User, access_token: str, token_expiry: datetime) -> User:
+        user.access_token = access_token
+        user.token_expiry = token_expiry
+        db.commit()
+        db.refresh(user)
+        return user

@@ -6,6 +6,7 @@ from ..services.auth_service import AuthService
 from shared.database import get_db
 from shared.config import settings
 from ..schemas.user_schema import AuthCodeRequest
+from ..services.token_service import TokenService
 
 router = APIRouter(tags=["Authentication"])
 
@@ -35,6 +36,7 @@ def get_login_url():
         "response_type": "code",
         "redirect_uri": settings.SPOTIFY_REDIRECT_URI,
         "scope": scopes,
+        "show_dialog": "true"
     }
     
     return {"url": f"{provider_url}?{urlencode(params)}"}
@@ -65,4 +67,23 @@ async def callback(request: AuthCodeRequest, db: Session = Depends(get_db)):
             "user": {"name": user.name, "id": user.id}
         }
     except Exception as e:
+        print("ERROR DETALLADO:", str(e))  # ← agrega esta línea
         raise HTTPException(status_code=400, detail=str(e))
+    
+
+@router.get("/tokens/{spotify_id}")
+async def get_spotify_token(spotify_id: str, db: Session = Depends(get_db)):
+    """
+    Endpoint interno — usado por otros microservicios para obtener
+    un access_token válido de Spotify para un usuario dado.
+    """
+    token_service = TokenService(db=db)
+    try:
+        access_token = await token_service.get_valid_spotify_token(spotify_id)
+        return {"access_token": access_token}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+@router.post("/logout")
+def logout():
+    return {"message": "Logout exitoso"}
