@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
-import httpx
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
+
+from .security import is_public_path, extract_spotify_id_from_request
 
 app = FastAPI(title="API Gateway - La Camisa Negra")
 
@@ -13,35 +15,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#Hay que cambiar para cuando usemos docker
 SERVICES = {
-    "auth": "http://authentication_service:8001",
-    # "music": "http://localhost:8002",  # Lo agregaremos después
+    "auth":  "http://authentication_service:8001",
+    "music": "http://music_service:8002",
 }
 
-# 2. Creamos una ruta dinámica que atrape todo lo que empiece con /auth
-@app.api_route("/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-async def proxy_auth(path: str, request: Request):
+
+async def proxy_request(target_url: str, request: Request, extra_headers: dict = {}) -> Response:
     """
-    Este endpoint intercepta cualquier tráfico hacia /auth/... 
-    y lo reenvía al authentication_service.
+    Función central de proxy. Reenvía la request al microservicio
+    destino e inyecta headers adicionales si se pasan.
     """
-    # Construimos la URL destino (ej. http://localhost:8001/login)
-    target_url = f"{SERVICES['auth']}/auth/{path}"  # agrega /auth/ aquí
-    
-    # Extraemos los datos de la petición original
     method = request.method
     headers = dict(request.headers)
-    # Evitamos problemas con el host original
-    headers.pop("host", None) 
-    
-    # Extraemos los query params (ej. ?code=12345)
+    headers.pop("host", None)
+    headers.update(extra_headers)  # aquí inyectamos X-Spotify-ID y similares
+
     query_params = dict(request.query_params)
-    
-    # Extraemos el body si existe
     body = await request.body()
 
-    # 3. Hacemos la petición al microservicio interno
     async with httpx.AsyncClient() as client:
         try:
             response = await client.request(
@@ -49,21 +41,51 @@ async def proxy_auth(path: str, request: Request):
                 url=target_url,
                 headers=headers,
                 params=query_params,
-                content=body
+                content=body,
             )
         except httpx.RequestError as exc:
-            raise HTTPException(status_code=503, detail=f"El servicio de autenticación no está disponible: {exc}")
+            raise HTTPException(status_code=503, detail=f"Servicio no disponible: {exc}")
 
+    # Filtramos set-cookie para manejarlo manualmente si hace falta
     headers_to_forward = {
-    key: value 
-    for key, value in response.headers.items()
-    if key.lower() != "set-cookie"
+        k: v for k, v in response.headers.items()
+        if k.lower() != "set-cookie"
     }
 
     return Response(
         content=response.content,
         status_code=response.status_code,
-        headers=headers_to_forward
-    )   
+        headers=headers_to_forward,
+    )
 
-    
+
+# ─── Rutas públicas: auth ────────────────────────────────────────────────────
+
+@app.api_route("/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_auth(path: str, request: Request):
+    """
+    Rutas de autenticación — no requieren JWT.
+    El login y callback de Spotify van aquí.
+    """
+    target_url = f"{SERVICES['auth']}/auth/{path}"
+    return await proxy_request(target_url, request)
+
+
+# ─── Rutas protegidas: music ─────────────────────────────────────────────────
+
+@app.api_route("/music/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_music(path: str, request: Request):
+    """
+    Rutas del music_service — requieren JWT válido.
+    El gateway valida el token e inyecta X-Spotify-ID para que
+    el music_service no necesite conocer SECRET_KEY.
+    """
+    spotify_id = extract_spotify_id_from_request(request)
+
+    target_url = f"{SERVICES['music']}/music/{path}"
+
+    return await proxy_request(
+        target_url,
+        request,
+        extra_headers={"X-Spotify-ID": spotify_id},
+    )
