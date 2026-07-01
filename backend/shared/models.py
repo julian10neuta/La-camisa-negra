@@ -1,12 +1,11 @@
 from datetime import datetime
-
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from .database import Base
 
+
 class User(Base):
     __tablename__ = "users"
-
     id = Column(Integer, primary_key=True, index=True)
     spotify_id = Column(String, unique=True, index=True, nullable=False)
     name = Column(String)
@@ -16,16 +15,15 @@ class User(Base):
     is_premium = Column(Boolean, default=False)
     registration_date = Column(DateTime, default=func.now())
 
+
 class Song(Base):
     __tablename__ = "songs"
     id = Column(Integer, primary_key=True)
-    spotify_track_id = Column(String, unique=True, nullable=False)
+    spotify_track_id = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, nullable=False)
     artist = Column(String, nullable=False)
-    album = Column(String)
-    duration_ms = Column(Integer)
-    cover_url = Column(String)
-    genres = Column(String)  # o ARRAY(String) si usas Postgres-specific types
+    genres = Column(String)  # feature para recommendation_service (KMeans)
+    duration_ms = Column(Integer)  # pendiente de decisión de equipo sobre umbral de skip
 
 
 class Interaction(Base):
