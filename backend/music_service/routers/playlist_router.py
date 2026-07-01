@@ -49,11 +49,10 @@ async def create_playlist(
 ):
     token = await TokenService(redis).get_token(x_spotify_id)
     playlist = await _spotify_service().create_playlist(
-        spotify_user_id=x_spotify_id,
-        name=payload.name,
-        description=payload.description,
-        access_token=token,
-        public=payload.public,
+    name=payload.name,
+    description=payload.description,
+    access_token=token,
+    public=payload.public,
     )
     return {"id": playlist["id"], "name": playlist["name"]}
 

@@ -8,6 +8,7 @@ from ..services.token_service import TokenService
 from ..services.spotify_service import SpotifyService
 from ..services.song_service import SongService
 from ..services.interaction_service import InteractionService
+from ..repositories.interaction_repository import InteractionRepository
 
 router = APIRouter(prefix="/interactions", tags=["interactions"])
 
@@ -59,11 +60,9 @@ async def list_likes(
     db: Session = Depends(get_db),
     redis=Depends(get_redis),
 ):
-    service = get_interaction_service(db, redis)
     user_id = _get_user_id(db, x_spotify_id)
-    interactions = service.list_likes(user_id)
-
-    return [{"spotify_track_id": i.song.spotify_track_id} for i in interactions]
+    results = InteractionRepository.list_favorites(db, user_id)
+    return [{"spotify_track_id": song.spotify_track_id} for _, song in results]
 
 
 # ─── Playback ─────────────────────────────────────────────────────────────────

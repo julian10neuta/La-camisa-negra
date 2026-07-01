@@ -8,7 +8,7 @@ def create_access_token(data: dict):
     to_encode = data.copy()
     
     # Usamos settings para obtener el tiempo de vida (o lo definimos fijo)
-    expire = datetime.now(timezone.utc) + timedelta(minutes=60)
+    expire = datetime.now(timezone.utc) + timedelta(days=7)
     to_encode.update({"exp": expire})
     
     # Usamos settings.SECRET_KEY y settings.ALGORITHM

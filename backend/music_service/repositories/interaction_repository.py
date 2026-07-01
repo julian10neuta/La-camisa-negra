@@ -35,10 +35,16 @@ class InteractionRepository:
         )
 
     @staticmethod
-    def list_favorites(db: Session, user_id: int) -> list[Interaction]:
+    def list_favorites(db: Session, user_id: int) -> list[tuple]:
+        """
+        Devuelve tuplas (Interaction, Song) para evitar N+1 queries
+        y el problema de acceder a song desde interaction sin relationship.
+        """
+        from shared.models import Song
         return (
-            db.query(Interaction)
-            .filter_by(user_id=user_id, type="like")
+            db.query(Interaction, Song)
+            .join(Song, Interaction.song_id == Song.id)
+            .filter(Interaction.user_id == user_id, Interaction.type == "like")
             .order_by(Interaction.date.desc())
             .all()
         )

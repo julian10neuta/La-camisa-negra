@@ -17,17 +17,18 @@ def get_login_url():
     El frontend consume este endpoint y redirige al usuario.
     """
     scopes = " ".join([
-        "streaming",                  
-        "user-read-email",            
-        "user-read-private",          
-        "user-modify-playback-state", 
-        "user-read-playback-state",   
-        "user-top-read",              
-        "user-read-recently-played",  
-        "playlist-modify-public",     
-        "playlist-modify-private",
-        "user-library-modify",        
-        "user-library-read",
+    "streaming",                  
+    "user-read-email",            
+    "user-read-private",          
+    "user-modify-playback-state", 
+    "user-read-playback-state",   
+    "user-top-read",              
+    "user-read-recently-played",  
+    "playlist-modify-public",     
+    "playlist-modify-private",
+    "playlist-read-private",      # ← agrega este
+    "user-library-modify",        
+    "user-library-read",
     ])
     
     provider_url = "https://accounts.spotify.com/authorize"
