@@ -232,7 +232,7 @@ export default function Search() {
                       <div className="track-actions">
                         <button
                           className="icon-btn"
-                          onClick={() => player.playTrack(track)}
+                          onClick={() => player.playTrack(track, { mode: "search" })}
                           title="Reproducir"
                           aria-label="Reproducir"
                         >

@@ -18,7 +18,7 @@ function fmt(ms) {
 
 export default function PlayerBar() {
   const player = usePlayer();
-  const { current, paused, position, duration, togglePlay, setExpanded } = player;
+  const { current, paused, position, duration, togglePlay, next, prev, setExpanded } = player;
 
   // Estado vacío (nada en reproducción)
   if (!current) {
@@ -56,11 +56,11 @@ export default function PlayerBar() {
       </button>
 
       <div className="playerbar__controls">
-        <button className="icon-btn" disabled aria-label="Anterior">⏮</button>
+        <button className="icon-btn" onClick={prev} aria-label="Anterior">⏮</button>
         <button className="playerbar__play" onClick={togglePlay} aria-label={paused ? "Reproducir" : "Pausar"}>
           {paused ? "▶" : "⏸"}
         </button>
-        <button className="icon-btn" disabled aria-label="Siguiente">⏭</button>
+        <button className="icon-btn" onClick={next} aria-label="Siguiente">⏭</button>
         <span className="playerbar__time">
           {fmt(position)} / {fmt(duration)}
         </span>

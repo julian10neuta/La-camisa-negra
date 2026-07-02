@@ -156,12 +156,15 @@ function Dashboard() {
 
       {!loading && tracks.length > 0 && (
         <div className="rec-grid">
-          {tracks.map((track) => {
+          {tracks.map((track, i) => {
             const liked = likedIds.has(track.spotify_track_id);
             const disliked = dislikedIds.has(track.spotify_track_id);
             return (
               <div className="rec-card" key={track.spotify_track_id}>
-                <div className="rec-card__art" onClick={() => player.playTrack(track)}>
+                <div
+                  className="rec-card__art"
+                  onClick={() => player.playTrack(track, { queue: tracks, index: i })}
+                >
                   {track.cover_url ? (
                     <img src={track.cover_url} alt="" />
                   ) : (

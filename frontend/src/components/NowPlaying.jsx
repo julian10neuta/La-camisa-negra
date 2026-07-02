@@ -27,8 +27,10 @@ function fmt(ms) {
 
 export default function NowPlaying() {
   const player = usePlayer();
-  const { current, paused, position, duration, expanded, errorMsg, togglePlay, seek, setExpanded } =
-    player;
+  const {
+    current, paused, position, duration, expanded, errorMsg,
+    togglePlay, seek, next, prev, setExpanded,
+  } = player;
 
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
@@ -116,11 +118,11 @@ export default function NowPlaying() {
         </div>
 
         <div className="nowplaying__controls">
-          <button className="icon-btn" disabled aria-label="Anterior">⏮</button>
+          <button className="icon-btn" onClick={prev} aria-label="Anterior">⏮</button>
           <button className="nowplaying__play" onClick={togglePlay} aria-label={paused ? "Reproducir" : "Pausar"}>
             {paused ? "▶" : "⏸"}
           </button>
-          <button className="icon-btn" disabled aria-label="Siguiente">⏭</button>
+          <button className="icon-btn" onClick={next} aria-label="Siguiente">⏭</button>
         </div>
 
         <div className="nowplaying__actions">

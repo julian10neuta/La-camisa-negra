@@ -1,22 +1,27 @@
 // src/player/PlayerContext.jsx
 // ----------------------------------------------------------------------------
-// Estado GLOBAL de reproducción, compartido por toda la app (la barra inferior
-// y la vista de reproducción leen de aquí). Vive al nivel de la app —no dentro
-// de una página— para que la música siga sonando y su estado se conserve al
-// navegar entre pantallas.
+// Estado GLOBAL de reproducción (barra inferior + vista de reproducción leen de
+// aquí). Vive al nivel de la app para que la música siga sonando al navegar.
 //
-// Usa el Spotify Web Playback SDK, que crea un "dispositivo" en el navegador y
-// exige cuenta Premium para producir audio. El SDK se carga de forma perezosa:
-// solo cuando el usuario pulsa "reproducir" por primera vez (así el Login no
-// carga nada).
+// Usa el Spotify Web Playback SDK (exige Premium; se carga perezoso al 1er play).
 //
-// Decisiones de alcance (confirmadas):
-//  - Se reproduce UNA sola canción por vez (sin cola) → siguiente/anterior inertes.
-//  - Se registra la reproducción en el backend (play/skip por umbral de 30s).
+// COLA (siguiente/anterior) — dos modos:
+//  - "playlist": cola FINITA (p. ej. el Dashboard de recomendaciones). Avanza sola
+//     y PARA cuando se acaba.
+//  - "search": al reproducir desde el buscador, tras la canción buscada la cola se
+//     arma con Me gusta (70%) + recomendaciones (30%) mezcladas al azar.
+//
+// Cada reproducción se registra en el backend (play/skip por umbral de 30s).
 // ----------------------------------------------------------------------------
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { getSpotifyId, getSpotifyToken, registerPlayback } from "../api";
+import {
+  getSpotifyId,
+  getSpotifyToken,
+  registerPlayback,
+  listLikes,
+  getRecommendations,
+} from "../api";
 
 const PlayerContext = createContext(null);
 
@@ -27,40 +32,86 @@ export function usePlayer() {
 
 const SDK_SRC = "https://sdk.scdn.co/spotify-player.js";
 const END_TOLERANCE_MS = 1500; // margen para considerar que llegó al final
+const LIKES_RATIO = 0.7; // 70% Me gusta / 30% recomendadas en el mix del buscador
+
+// Fisher-Yates
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Construye la cola del buscador: Me gusta (70%) + recomendaciones (30%) mezcladas
+// aleatoriamente, sin repetidos ni la canción semilla. Los "Me gusta" solo traen id
+// (el SDK rellena título/carátula al reproducir); las recomendaciones traen metadata.
+async function buildSearchMix(seedTrack) {
+  const [likes, recs] = await Promise.all([
+    listLikes().catch(() => []),
+    getRecommendations().then((r) => r.tracks || []).catch(() => []),
+  ]);
+  const seen = new Set([seedTrack.spotify_track_id]);
+  const likePool = shuffle(
+    likes.map((l) => ({ spotify_track_id: l.spotify_track_id }))
+  ).filter((t) => !seen.has(t.spotify_track_id));
+  const recPool = shuffle(recs).filter((t) => !seen.has(t.spotify_track_id));
+
+  const mix = [];
+  while (likePool.length || recPool.length) {
+    let pickLike;
+    if (!likePool.length) pickLike = false;
+    else if (!recPool.length) pickLike = true;
+    else pickLike = Math.random() < LIKES_RATIO;
+    const t = pickLike ? likePool.shift() : recPool.shift();
+    if (t && !seen.has(t.spotify_track_id)) {
+      seen.add(t.spotify_track_id);
+      mix.push(t);
+    }
+  }
+  return mix;
+}
 
 export function PlayerProvider({ children }) {
   // Estado que la UI observa
-  const [current, setCurrent] = useState(null); // metadata de la canción actual
+  const [current, setCurrent] = useState(null);
   const [paused, setPaused] = useState(true);
-  const [position, setPosition] = useState(0); // ms
-  const [duration, setDuration] = useState(0); // ms
-  const [expanded, setExpanded] = useState(false); // overlay abierto
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const [ready, setReady] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
   // Refs (no disparan re-render)
   const playerRef = useRef(null);
   const deviceIdRef = useRef(null);
-  const initPromiseRef = useRef(null); // evita inicializar el SDK dos veces
-  const tickRef = useRef(null); // intervalo que avanza la barra de progreso
-  const reportRef = useRef(null); // { trackId, duration, reported } de lo que suena
-  const progressedRef = useRef(false); // ¿la pista actual llegó a avanzar de verdad?
+  const initPromiseRef = useRef(null);
+  const tickRef = useRef(null);
+  const reportRef = useRef(null); // { trackId, duration, reported }
+  const progressedRef = useRef(false);
+  const positionRef = useRef(0); // espejo de position (para leerlo sin closures viejos)
 
-  // ─── Registro de reproducción (señal para recomendaciones) ─────────────────
+  // Cola de reproducción
+  const queueRef = useRef([]); // lista de tracks
+  const indexRef = useRef(0); // posición actual en la cola
+  const modeRef = useRef(null); // "playlist" | "search"
+  const searchBuildRef = useRef(null); // promesa de construcción del mix del buscador
+  const autoAdvanceRef = useRef(null); // apunta siempre al next() más reciente
+
+  // ─── Registro de reproducción ──────────────────────────────────────────────
 
   const reportPlayback = useCallback((seconds, reachedEnd, wasSkipped) => {
     const info = reportRef.current;
-    if (!info || info.reported || !info.trackId) return;
+    if (!info || info.reported || !info.trackId) return false;
     info.reported = true;
-    // El backend descarta <30s, así que reportamos sin miedo a "ruido".
     registerPlayback({
       spotify_track_id: info.trackId,
       seconds_played: Math.floor(seconds),
       reached_end: reachedEnd,
       was_skipped: wasSkipped,
-    }).catch(() => {
-      /* no es bloqueante para la reproducción */
-    });
+    }).catch(() => {});
+    return true; // sí reportó (para disparar auto-avance una sola vez)
   }, []);
 
   // ─── Ticker de progreso ────────────────────────────────────────────────────
@@ -78,13 +129,14 @@ export function PlayerProvider({ children }) {
       setPosition((prev) => {
         const info = reportRef.current;
         const dur = info?.duration || 0;
-        const next = prev + 1000;
-        // Fallback de "llegó al final": si el ticker alcanza la duración y el
-        // SDK no avisó, reportamos igual como reproducción completa.
-        if (dur && next >= dur - END_TOLERANCE_MS && info && !info.reported) {
-          reportPlayback(dur / 1000, true, false);
+        const nextPos = dur ? Math.min(prev + 1000, dur) : prev + 1000;
+        positionRef.current = nextPos;
+        // Fallback de "llegó al final": si el ticker alcanza la duración y el SDK
+        // no avisó, reportamos y auto-avanzamos.
+        if (dur && nextPos >= dur - END_TOLERANCE_MS && info && !info.reported) {
+          if (reportPlayback(dur / 1000, true, false)) autoAdvanceRef.current?.();
         }
-        return dur ? Math.min(next, dur) : next;
+        return nextPos;
       });
     }, 1000);
   }, [reportPlayback, stopTicker]);
@@ -105,7 +157,6 @@ export function PlayerProvider({ children }) {
       const onReadySDK = () => {
         const player = new window.Spotify.Player({
           name: "Wavely Web Player",
-          // El SDK llama a esto cuando necesita un token fresco de Spotify.
           getOAuthToken: (cb) => {
             getSpotifyToken(spotifyId)
               .then((t) => cb(t))
@@ -130,19 +181,32 @@ export function PlayerProvider({ children }) {
         player.addListener("playback_error", ({ message }) =>
           setErrorMsg("Error de reproducción: " + message));
 
-        // Fuente de verdad del estado real del reproductor.
         player.addListener("player_state_changed", (state) => {
           if (!state) return;
           setPaused(state.paused);
           setPosition(state.position);
+          positionRef.current = state.position;
           setDuration(state.duration);
-
-          // Marcamos que la pista realmente avanzó (evita falsos "fin" al arrancar).
           if (state.position > 2000) progressedRef.current = true;
 
-          // Detección de "canción terminada": el SDK deja position en 0 y
-          // paused=true cuando la pista (sin cola) acaba. Solo cuenta si ya
-          // había avanzado (si no, es el estado inicial, no un final).
+          // Rellena/actualiza la metadata mostrada desde el SDK (útil para los
+          // "Me gusta", que entran en la cola solo con id).
+          const ct = state.track_window?.current_track;
+          if (ct) {
+            setCurrent((prev) => {
+              if (prev && prev.spotify_track_id === ct.id && prev.name) return prev;
+              return {
+                spotify_track_id: ct.id,
+                name: ct.name,
+                artist: (ct.artists || []).map((a) => a.name).join(", "),
+                cover_url: ct.album?.images?.[0]?.url || null,
+                duration_ms: ct.duration_ms || 0,
+              };
+            });
+          }
+
+          // "Canción terminada": el SDK deja position 0 y paused=true. Solo cuenta
+          // si ya había avanzado. Reportamos y auto-avanzamos (una sola vez).
           const info = reportRef.current;
           if (
             info &&
@@ -152,7 +216,7 @@ export function PlayerProvider({ children }) {
             state.position === 0 &&
             info.duration > 0
           ) {
-            reportPlayback(info.duration / 1000, true, false);
+            if (reportPlayback(info.duration / 1000, true, false)) autoAdvanceRef.current?.();
           }
         });
 
@@ -177,29 +241,30 @@ export function PlayerProvider({ children }) {
     return initPromiseRef.current;
   }, [ready, reportPlayback]);
 
-  // ─── Acciones expuestas a la UI ────────────────────────────────────────────
+  // ─── Reproducir la pista en el índice dado de la cola ──────────────────────
 
-  // Reproduce una canción (objeto con la metadata que ya trae la búsqueda).
-  const playTrack = useCallback(
-    async (track) => {
+  const playAt = useCallback(
+    async (i) => {
+      const q = queueRef.current;
+      if (i < 0 || i >= q.length) return;
+      const track = q[i];
+      indexRef.current = i;
       setErrorMsg(null);
 
-      // Si algo sonaba y no se ha reportado, cuenta como "saltada".
-      reportPlayback(position / 1000, false, true);
+      // Reporta la saliente como "saltada" (no-op si ya se reportó por fin natural).
+      reportPlayback(positionRef.current / 1000, false, true);
 
       try {
         await ensureReady();
       } catch {
-        return; // ensureReady ya dejó el mensaje de error
+        return;
       }
-
       const deviceId = deviceIdRef.current;
       if (!deviceId) {
         setErrorMsg("El dispositivo de reproducción aún no está listo.");
         return;
       }
 
-      // Preparamos el registro de ESTA nueva reproducción.
       reportRef.current = {
         trackId: track.spotify_track_id,
         duration: track.duration_ms || 0,
@@ -207,48 +272,113 @@ export function PlayerProvider({ children }) {
       };
       progressedRef.current = false;
 
-      // UI: mostramos la pista de inmediato. El progreso y el estado real
-      // (paused) los marca el SDK vía player_state_changed —no de forma
-      // optimista— para no contar reproducciones que nunca sonaron.
-      setCurrent(track);
+      // Display: si tenemos metadata la mostramos ya; si no (Me gusta = solo id),
+      // el SDK la rellena en player_state_changed.
+      setCurrent(
+        track.name
+          ? track
+          : { spotify_track_id: track.spotify_track_id, name: null, artist: "", cover_url: null, duration_ms: track.duration_ms || 0 }
+      );
       setPosition(0);
+      positionRef.current = 0;
       setDuration(track.duration_ms || 0);
 
-      // Orden real a Spotify: reproducir en NUESTRO dispositivo.
       try {
         const token = await getSpotifyToken(getSpotifyId());
         const res = await fetch(
           `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`,
           {
             method: "PUT",
-            headers: {
-              Authorization: "Bearer " + token,
-              "Content-Type": "application/json",
-            },
+            headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
             body: JSON.stringify({ uris: [`spotify:track:${track.spotify_track_id}`] }),
           }
         );
-        if (res.status !== 204) {
-          setErrorMsg(`Spotify respondió ${res.status} al reproducir.`);
-        }
+        if (res.status !== 204) setErrorMsg(`Spotify respondió ${res.status} al reproducir.`);
       } catch {
         setErrorMsg("No se pudo enviar la orden de reproducción.");
       }
     },
-    [ensureReady, position, reportPlayback]
+    [ensureReady, reportPlayback]
   );
 
-  const togglePlay = useCallback(async () => {
-    if (!playerRef.current) return;
-    await playerRef.current.togglePlay();
-    // El estado real llega por player_state_changed; el ticker se ajusta abajo.
-  }, []);
+  // ─── Acciones públicas ─────────────────────────────────────────────────────
+
+  // context:
+  //   { queue: [...], index: n }  → modo playlist (Dashboard/recomendaciones)
+  //   { mode: "search" }           → modo buscador (arma el mix Me gusta+recs)
+  //   (nada)                       → una sola canción
+  const playTrack = useCallback(
+    async (track, context = {}) => {
+      if (Array.isArray(context.queue)) {
+        modeRef.current = "playlist";
+        queueRef.current = context.queue;
+        searchBuildRef.current = null;
+        await playAt(context.index ?? 0);
+      } else if (context.mode === "search") {
+        modeRef.current = "search";
+        queueRef.current = [track];
+        // Construimos el mix en segundo plano; no bloquea la reproducción.
+        searchBuildRef.current = buildSearchMix(track)
+          .then((mix) => {
+            queueRef.current = [track, ...mix];
+          })
+          .catch(() => {});
+        await playAt(0);
+      } else {
+        modeRef.current = "playlist";
+        queueRef.current = [track];
+        searchBuildRef.current = null;
+        await playAt(0);
+      }
+    },
+    [playAt]
+  );
+
+  const next = useCallback(async () => {
+    // En el buscador, si aún no hay siguiente, esperamos a que el mix termine.
+    if (
+      indexRef.current + 1 >= queueRef.current.length &&
+      modeRef.current === "search" &&
+      searchBuildRef.current
+    ) {
+      try {
+        await searchBuildRef.current;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (indexRef.current + 1 < queueRef.current.length) {
+      await playAt(indexRef.current + 1);
+    } else if (playerRef.current) {
+      await playerRef.current.pause(); // fin de la cola → parar
+    }
+  }, [playAt]);
 
   const seek = useCallback(async (ms) => {
     if (!playerRef.current) return;
     await playerRef.current.seek(ms);
     setPosition(ms);
+    positionRef.current = ms;
   }, []);
+
+  const prev = useCallback(async () => {
+    if (positionRef.current > 3000) {
+      await seek(0); // llevas rato: reinicia la actual
+    } else if (indexRef.current > 0) {
+      await playAt(indexRef.current - 1);
+    } else {
+      await seek(0);
+    }
+  }, [playAt, seek]);
+
+  const togglePlay = useCallback(async () => {
+    if (playerRef.current) await playerRef.current.togglePlay();
+  }, []);
+
+  // autoAdvanceRef siempre apunta al next() vigente (se usa dentro de listeners).
+  useEffect(() => {
+    autoAdvanceRef.current = next;
+  }, [next]);
 
   // Arranca/detiene el ticker según pausa
   useEffect(() => {
@@ -257,7 +387,6 @@ export function PlayerProvider({ children }) {
     else startTicker();
   }, [paused, current, startTicker, stopTicker]);
 
-  // Limpieza al desmontar la app
   useEffect(() => {
     return () => {
       stopTicker();
@@ -276,6 +405,8 @@ export function PlayerProvider({ children }) {
     playTrack,
     togglePlay,
     seek,
+    next,
+    prev,
     setExpanded,
   };
 
