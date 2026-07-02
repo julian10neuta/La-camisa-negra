@@ -73,6 +73,26 @@ class SpotifyService:
                 artists.extend(a for a in response.json().get("artists", []) if a)
         return artists
 
+    async def get_top_artists(
+        self,
+        access_token: str,
+        limit: int = 10,
+        time_range: str = "medium_term",
+    ) -> list[dict]:
+        """
+        GET /me/top/artists — los artistas más escuchados del usuario (calculado
+        por Spotify). Sigue disponible pese a las restricciones y es una gran
+        semilla de gustos para el recommendation_service.
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.BASE_URL}/me/top/artists",
+                params={"limit": limit, "time_range": time_range},
+                headers=self._headers(access_token),
+            )
+        response.raise_for_status()
+        return response.json().get("items", [])
+
     async def get_artist_top_tracks(
         self,
         artist_id: str,
