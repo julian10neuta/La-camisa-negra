@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..dependencies import get_redis
 from shared.database import get_db
-from ..services.token_service import TokenService
-from ..services.spotify_service import SpotifyService
+from shared.token_service import TokenService
+from shared.spotify_service import SpotifyService
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 

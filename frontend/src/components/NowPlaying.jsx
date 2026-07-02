@@ -10,7 +10,14 @@
 
 import { useEffect, useState } from "react";
 import { usePlayer } from "../player/PlayerContext";
-import { addLike, removeLike, listLikes } from "../api";
+import {
+  addLike,
+  removeLike,
+  listLikes,
+  addDislike,
+  removeDislike,
+  listDislikes,
+} from "../api";
 
 function fmt(ms) {
   if (!ms && ms !== 0) return "0:00";
@@ -24,14 +31,21 @@ export default function NowPlaying() {
     player;
 
   const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
 
-  // Al abrir con una canción, consultamos si ya está en favoritos.
+  // Al abrir con una canción, consultamos si ya está en favoritos / dislikes.
   useEffect(() => {
     if (!expanded || !current) return;
     let alive = true;
+    const id = current.spotify_track_id;
     listLikes()
       .then((likes) => {
-        if (alive) setLiked(likes.some((l) => l.spotify_track_id === current.spotify_track_id));
+        if (alive) setLiked(likes.some((l) => l.spotify_track_id === id));
+      })
+      .catch(() => {});
+    listDislikes()
+      .then((dis) => {
+        if (alive) setDisliked(dis.some((d) => d.spotify_track_id === id));
       })
       .catch(() => {});
     return () => {
@@ -44,11 +58,24 @@ export default function NowPlaying() {
   const toggleLike = async () => {
     const was = liked;
     setLiked(!was);
+    if (!was) setDisliked(false); // exclusión mutua
     try {
       if (was) await removeLike(current.spotify_track_id);
       else await addLike(current.spotify_track_id);
     } catch {
       setLiked(was); // revertir si falla
+    }
+  };
+
+  const toggleDislike = async () => {
+    const was = disliked;
+    setDisliked(!was);
+    if (!was) setLiked(false); // exclusión mutua
+    try {
+      if (was) await removeDislike(current.spotify_track_id);
+      else await addDislike(current.spotify_track_id);
+    } catch {
+      setDisliked(was); // revertir si falla
     }
   };
 
@@ -105,6 +132,14 @@ export default function NowPlaying() {
             aria-label="Favorito"
           >
             {liked ? "♥" : "♡"}
+          </button>
+          <button
+            className={"icon-btn" + (disliked ? " is-dislike" : "")}
+            onClick={toggleDislike}
+            title={disliked ? "Quitar dislike" : "No me gusta"}
+            aria-label="No me gusta"
+          >
+            👎
           </button>
           <button className="btn-ghost btn nowplaying__ai" disabled title="Próximamente">
             💬 Preguntar a la IA

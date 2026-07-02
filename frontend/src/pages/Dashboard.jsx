@@ -1,42 +1,201 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+// src/pages/Dashboard.jsx
+// ----------------------------------------------------------------------------
+// Dashboard: por ahora muestra la sección "Recomendado para ti" (el motor de
+// recomendación). El dashboard completo de estadísticas (top canciones/artistas/
+// álbumes, ventanas 24h/7d) del mockup es otra entrega.
+//
+// Cada tarjeta permite reproducir, dar like y dar dislike (mismas señales que
+// alimentan el propio motor).
+// ----------------------------------------------------------------------------
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Layout from "../components/Layout";
+import { usePlayer } from "../player/PlayerContext";
+import {
+  getRecommendations,
+  refreshRecommendations,
+  addLike,
+  removeLike,
+  addDislike,
+  removeDislike,
+  listLikes,
+  listDislikes,
+  getToken,
+} from "../api";
 
 function Dashboard() {
-  const [user, setUser] = useState(null)
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const player = usePlayer();
+
+  const [tracks, setTracks] = useState([]);
+  const [playlistUrl, setPlaylistUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [likedIds, setLikedIds] = useState(() => new Set());
+  const [dislikedIds, setDislikedIds] = useState(() => new Set());
+
+  const applyResult = (data) => {
+    setTracks(data.tracks || []);
+    setPlaylistUrl(data.playlist_url || null);
+  };
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    const userData = localStorage.getItem('user')
-    
-    if (!token) {
-      navigate('/')
-      return
+    if (!getToken()) {
+      navigate("/");
+      return;
     }
+    listLikes()
+      .then((l) => setLikedIds(new Set(l.map((x) => x.spotify_track_id))))
+      .catch(() => {});
+    listDislikes()
+      .then((d) => setDislikedIds(new Set(d.map((x) => x.spotify_track_id))))
+      .catch(() => {});
 
-    setUser(JSON.parse(userData))
-  }, [navigate])
+    getRecommendations()
+      .then(applyResult)
+      .catch(() => setError("No se pudieron cargar las recomendaciones."))
+      .finally(() => setLoading(false));
+  }, [navigate]);
 
-  const handleLogout = async () => {
-    await fetch("http://127.0.0.1:8000/auth/logout", { method: "POST" })
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
-    navigate('/')
-  }
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      applyResult(await refreshRecommendations());
+    } catch {
+      setError("No se pudieron regenerar las recomendaciones.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const removeFrom = (setter, id) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
+  // toggle genérico para like/dislike (evita duplicar la lógica optimista).
+  const makeToggle = (has, setter, otherSetter, add, remove) => async (id) => {
+    const was = has(id);
+    setter((prev) => {
+      const next = new Set(prev);
+      if (was) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    if (!was) removeFrom(otherSetter, id); // exclusión mutua like/dislike
+    try {
+      if (was) await remove(id);
+      else await add(id);
+    } catch {
+      setter((prev) => {
+        const next = new Set(prev);
+        if (was) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const toggleLike = makeToggle(
+    (id) => likedIds.has(id), setLikedIds, setDislikedIds, addLike, removeLike
+  );
+  const toggleDislike = makeToggle(
+    (id) => dislikedIds.has(id), setDislikedIds, setLikedIds, addDislike, removeDislike
+  );
 
   return (
-    <div>
-      <h1>Dashboard</h1>
-      {user ? (
-        <>
-          <p>Bienvenido, {user.name}</p>
-          <button onClick={handleLogout}>Cerrar sesión</button>
-        </>
-      ) : (
-        <p>Cargando...</p>
+    <Layout>
+      <div className="dash-header">
+        <div>
+          <h1 className="page-title">Recomendado para ti</h1>
+          <p className="page-subtitle">
+            Canciones nuevas según tu escucha, tus likes y tus dislikes
+          </p>
+        </div>
+        <div className="dash-header__actions">
+          {playlistUrl && (
+            <a className="btn-ghost btn" href={playlistUrl} target="_blank" rel="noreferrer">
+              Abrir en Spotify
+            </a>
+          )}
+          <button className="btn" onClick={handleRefresh} disabled={refreshing || loading}>
+            {refreshing ? "Regenerando…" : "↻ Regenerar"}
+          </button>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="state">
+          <span className="state__icon">✦</span>
+          <p className="state__hint">Generando recomendaciones…</p>
+        </div>
       )}
-    </div>
-  )
+
+      {error && !loading && (
+        <div className="state">
+          <span className="state__icon">⚠</span>
+          <p className="state__hint">{error}</p>
+        </div>
+      )}
+
+      {!loading && !error && tracks.length === 0 && (
+        <div className="state">
+          <span className="state__icon">✦</span>
+          <p className="state__title">Aún no hay recomendaciones</p>
+          <p className="state__hint">
+            Reproduce, marca favoritos y descarta algunas canciones en la Búsqueda.
+            Con esas señales el motor arma tus recomendaciones.
+          </p>
+        </div>
+      )}
+
+      {!loading && tracks.length > 0 && (
+        <div className="rec-grid">
+          {tracks.map((track) => {
+            const liked = likedIds.has(track.spotify_track_id);
+            const disliked = dislikedIds.has(track.spotify_track_id);
+            return (
+              <div className="rec-card" key={track.spotify_track_id}>
+                <div className="rec-card__art" onClick={() => player.playTrack(track)}>
+                  {track.cover_url ? (
+                    <img src={track.cover_url} alt="" />
+                  ) : (
+                    <span className="rec-card__placeholder">♪</span>
+                  )}
+                  <span className="rec-card__play">▶</span>
+                </div>
+                <div className="rec-card__name">{track.name}</div>
+                <div className="rec-card__artist">{track.artist}</div>
+                <div className="rec-card__actions">
+                  <button
+                    className={"icon-btn" + (liked ? " is-active" : "")}
+                    onClick={() => toggleLike(track.spotify_track_id)}
+                    title={liked ? "Quitar de favoritos" : "Añadir a favoritos"}
+                    aria-label="Favorito"
+                  >
+                    {liked ? "♥" : "♡"}
+                  </button>
+                  <button
+                    className={"icon-btn" + (disliked ? " is-dislike" : "")}
+                    onClick={() => toggleDislike(track.spotify_track_id)}
+                    title={disliked ? "Quitar dislike" : "No me gusta"}
+                    aria-label="No me gusta"
+                  >
+                    👎
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Layout>
+  );
 }
 
-export default Dashboard
+export default Dashboard;

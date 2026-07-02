@@ -99,6 +99,26 @@ services:
     networks:
       - app_network
 
+  recommendation_service:
+    build:
+      context: ./backend
+      dockerfile: recommendation_service/Dockerfile
+    container_name: la_camisa_negra_recommendation
+    restart: always
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/recommendation_service:/app/recommendation_service
+      - ./backend/shared:/app/shared
+    depends_on:
+      - postgres_db
+      - redis_cache
+      - authentication_service
+    networks:
+      - app_network
+
 volumes:
   postgres_data:
   redis_data:

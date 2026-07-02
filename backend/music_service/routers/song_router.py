@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 from fastapi import Depends
 from ..dependencies import get_redis
 from shared.database import get_db
-from ..services.token_service import TokenService
-from ..services.spotify_service import SpotifyService
+from shared.token_service import TokenService
+from shared.spotify_service import SpotifyService
 from ..services.song_service import SongService
+from ..repositories.song_repository import SongRepository
 
 router = APIRouter(prefix="/songs", tags=["songs"])
 
@@ -52,3 +53,29 @@ async def search_songs(
     results = await song_service.search(q, access_token, limit)
 
     return [_serialize_track(track) for track in results]
+
+
+@router.post("/refresh-genres")
+async def refresh_genres(
+    x_spotify_id: str = Header(...),
+    db: Session = Depends(get_db),
+    redis=Depends(get_redis),
+):
+    """
+    Mantenimiento: rellena el género de las canciones que se cachearon sin él
+    (típicamente las importadas del login antes de este arreglo). Se puede
+    llamar una vez para "sanar" la biblioteca existente. Enriquece de a una
+    (las nuevas ya se enriquecen solas al interactuar o en el sync por lote).
+    """
+    token = await TokenService(redis).get_token(x_spotify_id)
+    song_service = SongService(db, SpotifyService())
+
+    pending = SongRepository.get_missing_genres(db)
+    updated = 0
+    for song in pending:
+        genres = await song_service.fetch_track_genres(song.spotify_track_id, token)
+        if genres:
+            SongRepository.set_genres(db, song, genres)
+            updated += 1
+
+    return {"detail": f"{updated} canciones enriquecidas", "revisadas": len(pending)}

@@ -15,7 +15,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { usePlayer } from "../player/PlayerContext";
-import { searchSongs, addLike, removeLike, listLikes, getToken } from "../api";
+import {
+  searchSongs,
+  addLike,
+  removeLike,
+  listLikes,
+  addDislike,
+  removeDislike,
+  listDislikes,
+  getToken,
+} from "../api";
 
 // duration_ms (número) -> "m:ss"
 function formatDuration(ms) {
@@ -37,6 +46,7 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [likedIds, setLikedIds] = useState(() => new Set()); // spotify_track_id con like
+  const [dislikedIds, setDislikedIds] = useState(() => new Set()); // con dislike
 
   // Guard de sesión: sin token no hay nada que buscar.
   useEffect(() => {
@@ -44,12 +54,13 @@ export default function Search() {
       navigate("/");
       return;
     }
-    // Precargamos los favoritos para pintar el corazón en el estado correcto.
+    // Precargamos likes y dislikes para pintar los botones en el estado correcto.
     listLikes()
       .then((likes) => setLikedIds(new Set(likes.map((l) => l.spotify_track_id))))
-      .catch(() => {
-        /* si falla, arrancamos sin favoritos marcados; no es bloqueante */
-      });
+      .catch(() => {});
+    listDislikes()
+      .then((dis) => setDislikedIds(new Set(dis.map((d) => d.spotify_track_id))))
+      .catch(() => {});
   }, [navigate]);
 
   const handleSearch = async (e) => {
@@ -80,6 +91,14 @@ export default function Search() {
     setError(null);
   };
 
+  // Quita un id de un Set de estado (helper para la exclusión mutua like/dislike).
+  const removeFrom = (setter, trackId) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      next.delete(trackId);
+      return next;
+    });
+
   const toggleLike = async (trackId) => {
     const wasLiked = likedIds.has(trackId);
     // Actualización optimista de la UI; revertimos si el backend falla.
@@ -89,6 +108,8 @@ export default function Search() {
       else next.add(trackId);
       return next;
     });
+    // Like y dislike son mutuamente excluyentes (el backend también lo aplica).
+    if (!wasLiked) removeFrom(setDislikedIds, trackId);
     try {
       if (wasLiked) await removeLike(trackId);
       else await addLike(trackId);
@@ -96,6 +117,28 @@ export default function Search() {
       setLikedIds((prev) => {
         const next = new Set(prev);
         if (wasLiked) next.add(trackId);
+        else next.delete(trackId);
+        return next;
+      });
+    }
+  };
+
+  const toggleDislike = async (trackId) => {
+    const wasDisliked = dislikedIds.has(trackId);
+    setDislikedIds((prev) => {
+      const next = new Set(prev);
+      if (wasDisliked) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+    if (!wasDisliked) removeFrom(setLikedIds, trackId);
+    try {
+      if (wasDisliked) await removeDislike(trackId);
+      else await addDislike(trackId);
+    } catch {
+      setDislikedIds((prev) => {
+        const next = new Set(prev);
+        if (wasDisliked) next.add(trackId);
         else next.delete(trackId);
         return next;
       });
@@ -160,6 +203,7 @@ export default function Search() {
             <tbody>
               {results.map((track, i) => {
                 const liked = likedIds.has(track.spotify_track_id);
+                const disliked = dislikedIds.has(track.spotify_track_id);
                 return (
                   <tr key={track.spotify_track_id}>
                     <td className="col-index">{i + 1}</td>
@@ -201,6 +245,14 @@ export default function Search() {
                           aria-label="Favorito"
                         >
                           {liked ? "♥" : "♡"}
+                        </button>
+                        <button
+                          className={"icon-btn" + (disliked ? " is-dislike" : "")}
+                          onClick={() => toggleDislike(track.spotify_track_id)}
+                          title={disliked ? "Quitar dislike" : "No me gusta"}
+                          aria-label="No me gusta"
+                        >
+                          {disliked ? "👎" : "👎"}
                         </button>
                         <button
                           className="icon-btn"

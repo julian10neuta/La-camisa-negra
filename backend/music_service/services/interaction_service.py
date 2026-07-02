@@ -3,11 +3,16 @@ from sqlalchemy.orm import Session
 from shared.models import Interaction
 from ..repositories.interaction_repository import InteractionRepository
 from ..repositories.song_repository import SongRepository
-from .spotify_service import SpotifyService
+from shared.spotify_service import SpotifyService
 from .song_service import SongService
 
 
-PLAYBACK_THRESHOLD_SECONDS = 30
+# Piso mínimo para que una reproducción cuente como señal: por debajo de esto
+# la tratamos como accidental (abrir y cerrar). Antes descartábamos todo lo <30s,
+# pero eso tiraba a la basura los "skips tempranos", que son la señal negativa
+# MÁS fuerte. Ahora sí los guardamos; el peso por tiempo lo aplica el motor de
+# recomendación (un skip a los 8s pesa más negativo que uno a los 40s).
+MIN_PLAYBACK_SECONDS = 5
 
 
 class InteractionService:
@@ -40,6 +45,13 @@ class InteractionService:
             spotify_track_id, access_token
         )
 
+        # Exclusión mutua: dar like quita cualquier dislike previo (local).
+        dislike = InteractionRepository.get_by_type(
+            self.db, user_id, song.id, "dislike"
+        )
+        if dislike:
+            InteractionRepository.delete(self.db, dislike)
+
         existing = InteractionRepository.get_favorite(
             self.db, user_id, song.id
         )
@@ -53,6 +65,53 @@ class InteractionService:
         return InteractionRepository.create(
             self.db, user_id=user_id, song_id=song.id, type="like"
         )
+
+    async def add_dislike(
+        self,
+        user_id: int,
+        spotify_track_id: str,
+        access_token: str,
+    ) -> Interaction:
+        """
+        Dislike explícito — señal negativa fuerte para las recomendaciones.
+        Es LOCAL (no se espeja en Spotify; Spotify no tiene un 'dislike' de track).
+        Exclusión mutua: dar dislike quita el like (local + espejo de Spotify).
+        """
+        song = await self.song_service.get_or_cache(
+            spotify_track_id, access_token
+        )
+
+        like = InteractionRepository.get_by_type(
+            self.db, user_id, song.id, "like"
+        )
+        if like:
+            InteractionRepository.delete(self.db, like)
+            await self.spotify_service.remove_from_liked_songs(
+                spotify_track_id, access_token
+            )
+
+        existing = InteractionRepository.get_by_type(
+            self.db, user_id, song.id, "dislike"
+        )
+        if existing:
+            return existing  # ya estaba, no duplicamos
+
+        return InteractionRepository.create(
+            self.db, user_id=user_id, song_id=song.id, type="dislike"
+        )
+
+    def remove_dislike(self, user_id: int, spotify_track_id: str) -> None:
+        song = SongRepository.get_by_spotify_track_id(
+            self.db, spotify_track_id
+        )
+        if not song:
+            return
+
+        dislike = InteractionRepository.get_by_type(
+            self.db, user_id, song.id, "dislike"
+        )
+        if dislike:
+            InteractionRepository.delete(self.db, dislike)
 
     async def remove_like(
         self,
@@ -118,16 +177,16 @@ class InteractionService:
         reached_end: bool,
         was_skipped: bool,
     ) -> str | None:
-        if seconds_played < PLAYBACK_THRESHOLD_SECONDS:
-            return None  # ruido, no cuenta
+        if seconds_played < MIN_PLAYBACK_SECONDS:
+            return None  # accidental, no cuenta
 
         if reached_end:
             return "play"  # escuchó completa — señal positiva fuerte
 
         if was_skipped:
-            return "skip"  # dio oportunidad (30s+) pero igual la saltó
+            return "skip"  # la saltó; cuánto la escuchó queda en time_reproduced
 
-        return "play"  # pausó/cerró sin terminar, pero superó el umbral
+        return "play"  # pausó/cerró sin terminar, pero escuchó algo
 
     # ─── Sincronización de Liked Songs al hacer login ─────────────────────────
 

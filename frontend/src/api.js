@@ -80,6 +80,34 @@ export async function listLikes() {
   return res.json(); // [{ spotify_track_id }]
 }
 
+// ─── Dislikes ─────────────────────────────────────────────────────────────────
+// Señal negativa fuerte para las recomendaciones. Es local (no se espeja en
+// Spotify). Dar dislike quita el like y viceversa (lo maneja el backend).
+
+export async function addDislike(spotifyTrackId) {
+  const res = await fetch(`${GATEWAY}/music/interactions/dislikes/${spotifyTrackId}`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return ensureOk(res);
+}
+
+export async function removeDislike(spotifyTrackId) {
+  const res = await fetch(`${GATEWAY}/music/interactions/dislikes/${spotifyTrackId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return ensureOk(res);
+}
+
+export async function listDislikes() {
+  const res = await fetch(`${GATEWAY}/music/interactions/dislikes`, {
+    headers: authHeaders(),
+  });
+  await ensureOk(res);
+  return res.json(); // [{ spotify_track_id }]
+}
+
 // ─── Reproducción ─────────────────────────────────────────────────────────────
 
 // Reporta el resultado de una reproducción para alimentar las recomendaciones.
@@ -101,6 +129,29 @@ export async function getSpotifyToken(spotifyId) {
   await ensureOk(res);
   const data = await res.json();
   return data.access_token;
+}
+
+// ─── Recomendaciones ──────────────────────────────────────────────────────────
+
+// Devuelve { tracks, playlist_id, playlist_url, generated }.
+// Si hay una playlist reciente la devuelve tal cual; si no, la genera (puede
+// tardar unos segundos porque consulta a Spotify).
+export async function getRecommendations() {
+  const res = await fetch(`${GATEWAY}/recommendations/list`, {
+    headers: authHeaders(),
+  });
+  await ensureOk(res);
+  return res.json();
+}
+
+// Fuerza la regeneración de las recomendaciones.
+export async function refreshRecommendations() {
+  const res = await fetch(`${GATEWAY}/recommendations/refresh`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  await ensureOk(res);
+  return res.json();
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
