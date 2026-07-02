@@ -35,7 +35,9 @@ async def proxy_request(target_url: str, request: Request, extra_headers: dict =
     query_params = dict(request.query_params)
     body = await request.body()
 
-    async with httpx.AsyncClient() as client:
+    # Timeout amplio: generar recomendaciones hace decenas de llamadas a Deezer +
+    # Spotify y puede tardar ~15-30s. El default de httpx (5s) cortaba con 503.
+    async with httpx.AsyncClient(timeout=120) as client:
         try:
             response = await client.request(
                 method=method,
