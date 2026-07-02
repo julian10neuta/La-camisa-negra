@@ -17,6 +17,18 @@ export function getToken() {
   return localStorage.getItem("token");
 }
 
+// El spotify_id va dentro del JWT (campo "sub"). Lo necesita el Web Playback SDK
+// para pedir el token real de Spotify.
+export function getSpotifyId() {
+  const jwt = getToken();
+  if (!jwt) return null;
+  try {
+    return JSON.parse(atob(jwt.split(".")[1])).sub;
+  } catch {
+    return null;
+  }
+}
+
 export function authHeaders() {
   return { Authorization: `Bearer ${getToken()}` };
 }
@@ -66,6 +78,29 @@ export async function listLikes() {
   });
   await ensureOk(res);
   return res.json(); // [{ spotify_track_id }]
+}
+
+// ─── Reproducción ─────────────────────────────────────────────────────────────
+
+// Reporta el resultado de una reproducción para alimentar las recomendaciones.
+// El backend descarta lo que no supere el umbral de 30s (ver interaction_service).
+// payload: { spotify_track_id, seconds_played, reached_end, was_skipped }
+export async function registerPlayback(payload) {
+  const res = await fetch(`${GATEWAY}/music/interactions/playback`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return ensureOk(res);
+}
+
+// El Web Playback SDK necesita el token REAL de Spotify (no el JWT de la app).
+// Este endpoint del auth service lo entrega y lo refresca si hace falta.
+export async function getSpotifyToken(spotifyId) {
+  const res = await fetch(`${GATEWAY}/auth/tokens/${spotifyId}`);
+  await ensureOk(res);
+  const data = await res.json();
+  return data.access_token;
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
+import { usePlayer } from "../player/PlayerContext";
 import { searchSongs, addLike, removeLike, listLikes, getToken } from "../api";
 
 // duration_ms (número) -> "m:ss"
@@ -27,6 +28,7 @@ function formatDuration(ms) {
 
 export default function Search() {
   const navigate = useNavigate();
+  const player = usePlayer();
 
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState(""); // término ya buscado
@@ -186,8 +188,8 @@ export default function Search() {
                       <div className="track-actions">
                         <button
                           className="icon-btn"
-                          disabled
-                          title="Reproducir (próximamente)"
+                          onClick={() => player.playTrack(track)}
+                          title="Reproducir"
                           aria-label="Reproducir"
                         >
                           ▶

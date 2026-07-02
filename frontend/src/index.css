@@ -573,3 +573,218 @@ button {
     height: 80px;
   }
 }
+
+/* ============================================================================
+   Barra de reproductor — estado "sonando" (canción actual + tiempos)
+   ========================================================================== */
+
+.playerbar__now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  max-width: 320px;
+}
+
+.playerbar__now:hover {
+  background: var(--bg-elev-2);
+}
+
+.playerbar__chevron {
+  color: var(--text-faint);
+  font-size: 16px;
+}
+
+.playerbar__cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg-elev-2);
+  flex-shrink: 0;
+}
+
+.playerbar__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.playerbar__track {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.playerbar__artist {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.playerbar__time {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 82px;
+  text-align: center;
+}
+
+/* ============================================================================
+   NowPlaying — vista de reproducción (overlay deslizante)
+   ========================================================================== */
+
+.nowplaying {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background:
+    radial-gradient(900px 600px at 50% 0%, rgba(236, 72, 153, 0.12), transparent 60%),
+    var(--bg);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 28px 32px;
+  overflow-y: auto;
+  animation: slideup 0.25s ease;
+}
+
+@keyframes slideup {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.nowplaying__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nowplaying__back {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.nowplaying__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  max-width: 460px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.nowplaying__cover {
+  width: 300px;
+  height: 300px;
+  max-width: 70vw;
+  border-radius: 16px;
+  object-fit: cover;
+  background: var(--bg-elev-2);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  margin-bottom: 18px;
+}
+
+.nowplaying__title {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.nowplaying__artist {
+  color: var(--accent);
+  font-size: 15px;
+  margin: 0;
+}
+
+.nowplaying__album {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.nowplaying__error {
+  color: var(--accent-hover);
+  background: rgba(236, 72, 153, 0.12);
+  border: 1px solid rgba(236, 72, 153, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.nowplaying__progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 20px;
+}
+
+.nowplaying__time {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+}
+
+.nowplaying__seek {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.nowplaying__controls {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 18px;
+}
+
+.nowplaying__play {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nowplaying__play:hover {
+  background: var(--accent-hover);
+}
+
+.nowplaying__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.nowplaying__ai {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.nowplaying__queue {
+  color: var(--text-faint);
+  font-size: 12px;
+  margin-top: 22px;
+}

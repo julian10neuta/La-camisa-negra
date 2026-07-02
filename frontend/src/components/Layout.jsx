@@ -9,6 +9,7 @@
 // ----------------------------------------------------------------------------
 
 import { NavLink } from "react-router-dom";
+import PlayerBar from "./PlayerBar";
 
 // NavLink pinta la clase "is-active" automáticamente cuando la ruta coincide.
 function Item({ to, icon, label, disabled }) {
@@ -55,25 +56,8 @@ export default function Layout({ children }) {
 
       <main className="app-main">{children}</main>
 
-      {/* Barra de reproductor: por ahora estática (aún no hay reproductor real). */}
-      <footer className="playerbar">
-        <span className="playerbar__status">Ninguna canción en reproducción</span>
-        <div className="playerbar__controls">
-          <button className="icon-btn" disabled aria-label="Anterior">
-            ⏮
-          </button>
-          <button className="playerbar__play" disabled aria-label="Reproducir">
-            ▶
-          </button>
-          <button className="icon-btn" disabled aria-label="Siguiente">
-            ⏭
-          </button>
-          <button className="icon-btn" disabled aria-label="Volumen">
-            🔊
-          </button>
-          <span className="playerbar__spotify">● Spotify</span>
-        </div>
-      </footer>
+      {/* Barra de reproductor viva (lee el estado global del reproductor). */}
+      <PlayerBar />
     </div>
   );
 }
