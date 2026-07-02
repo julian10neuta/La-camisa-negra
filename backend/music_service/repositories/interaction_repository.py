@@ -35,6 +35,32 @@ class InteractionRepository:
         )
 
     @staticmethod
+    def get_by_type(
+        db: Session,
+        user_id: int,
+        song_id: int,
+        type: str,
+    ) -> Interaction | None:
+        """Versión genérica de get_favorite para cualquier tipo (like/dislike/...)."""
+        return (
+            db.query(Interaction)
+            .filter_by(user_id=user_id, song_id=song_id, type=type)
+            .first()
+        )
+
+    @staticmethod
+    def list_by_type(db: Session, user_id: int, type: str) -> list[tuple]:
+        """Devuelve tuplas (Interaction, Song) del tipo dado (p. ej. 'dislike')."""
+        from shared.models import Song
+        return (
+            db.query(Interaction, Song)
+            .join(Song, Interaction.song_id == Song.id)
+            .filter(Interaction.user_id == user_id, Interaction.type == type)
+            .order_by(Interaction.date.desc())
+            .all()
+        )
+
+    @staticmethod
     def list_favorites(db: Session, user_id: int) -> list[tuple]:
         """
         Devuelve tuplas (Interaction, Song) para evitar N+1 queries

@@ -1,7 +1,20 @@
 # music_service/repositories/song_repository.py
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from shared.models import Song
+
+
+def _normalize_genres(value) -> str | None:
+    """
+    Acepta el género tanto como lista (data cruda de Spotify) como string ya
+    unido (cuando el SongService lo pre-procesó). Evita el bug de hacer
+    ",".join(un_string), que explotaba el género carácter por carácter.
+    """
+    if isinstance(value, str):
+        return value or None
+    if value:  # lista/tupla no vacía
+        return ",".join(value)
+    return None
 
 
 class SongRepository:
@@ -44,6 +57,23 @@ class SongRepository:
         )
 
     @staticmethod
+    def set_genres(db: Session, song: Song, genres: str | None) -> Song:
+        """Actualiza el género de una canción ya existente (auto-sanado/backfill)."""
+        song.genres = genres
+        db.commit()
+        db.refresh(song)
+        return song
+
+    @staticmethod
+    def get_missing_genres(db: Session) -> list[Song]:
+        """Canciones sin género poblado (null o vacío) — para el backfill."""
+        return (
+            db.query(Song)
+            .filter(or_(Song.genres.is_(None), Song.genres == ""))
+            .all()
+        )
+
+    @staticmethod
     def get_all_with_genres(db: Session) -> list[Song]:
         """
         Para entrenar KMeans necesitas el universo completo de canciones
@@ -67,8 +97,8 @@ class SongRepository:
             name=track_data["name"],
             # Manejamos el artista igual que antes por seguridad
             artist=track_data["artists"][0]["name"] if track_data.get("artists") else "Unknown",
-            # Guardamos los géneros si vienen en la respuesta (útil para el KMeans)
-            genres=",".join(track_data.get("genres", [])) if track_data.get("genres") else None,
+            # Guardamos los géneros (lista o string ya unido) sin corromperlos.
+            genres=_normalize_genres(track_data.get("genres")),
             # Guardamos duración para lógica de 'skip' o 'reproducción completa'
             duration_ms=track_data.get("duration_ms"),
         )

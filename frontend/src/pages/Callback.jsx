@@ -14,7 +14,7 @@ export default function Callback() {
     const error = params.get("error");
 
     if (error || !code) {
-      navigate("/login?error=spotify_denied");
+      navigate("/?error=spotify_denied");
       return;
     }
 
@@ -33,7 +33,7 @@ export default function Callback() {
         navigate("/dashboard");
       })
       .catch(() => {
-        navigate("/login?error=auth_failed");
+        navigate("/?error=auth_failed");
       });
   }, [navigate]);
 

@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..dependencies import get_redis
 from shared.database import get_db
-from ..services.token_service import TokenService
-from ..services.spotify_service import SpotifyService
+from shared.token_service import TokenService
+from shared.spotify_service import SpotifyService
 from ..services.song_service import SongService
 from ..services.interaction_service import InteractionService
 from ..repositories.interaction_repository import InteractionRepository
@@ -65,6 +65,48 @@ async def list_likes(
     return [{"spotify_track_id": song.spotify_track_id} for _, song in results]
 
 
+# ─── Dislikes ──────────────────────────────────────────────────────────────────
+
+@router.post("/dislikes/{spotify_track_id}", status_code=201)
+async def add_dislike(
+    spotify_track_id: str,
+    x_spotify_id: str = Header(...),
+    db: Session = Depends(get_db),
+    redis=Depends(get_redis),
+):
+    service = get_interaction_service(db, redis)
+    token = await TokenService(redis).get_token(x_spotify_id)
+    user_id = _get_user_id(db, x_spotify_id)
+
+    await service.add_dislike(user_id, spotify_track_id, token)
+    return {"detail": "dislike agregado"}
+
+
+@router.delete("/dislikes/{spotify_track_id}", status_code=200)
+async def remove_dislike(
+    spotify_track_id: str,
+    x_spotify_id: str = Header(...),
+    db: Session = Depends(get_db),
+    redis=Depends(get_redis),
+):
+    service = get_interaction_service(db, redis)
+    user_id = _get_user_id(db, x_spotify_id)
+
+    service.remove_dislike(user_id, spotify_track_id)
+    return {"detail": "dislike eliminado"}
+
+
+@router.get("/dislikes")
+async def list_dislikes(
+    x_spotify_id: str = Header(...),
+    db: Session = Depends(get_db),
+    redis=Depends(get_redis),
+):
+    user_id = _get_user_id(db, x_spotify_id)
+    results = InteractionRepository.list_by_type(db, user_id, "dislike")
+    return [{"spotify_track_id": song.spotify_track_id} for _, song in results]
+
+
 # ─── Playback ─────────────────────────────────────────────────────────────────
 
 class PlaybackPayload(BaseModel):
@@ -95,7 +137,7 @@ async def register_playback(
     )
 
     if result is None:
-        return {"detail": "reproducción ignorada, no alcanzó el umbral de 30s"}
+        return {"detail": "reproducción ignorada, demasiado corta"}
     return {"detail": "interacción registrada", "type": result.type}
 
 
