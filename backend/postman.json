@@ -1,0 +1,335 @@
+{
+  "info": {
+    "name": "La Camisa Negra - Music Service",
+    "description": "Pruebas de los endpoints del microservicio de música pasando por el API Gateway.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Songs",
+      "item": [
+        {
+          "name": "Search Songs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/songs/search?q=feid&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["music", "songs", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "feid"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Interactions",
+      "item": [
+        {
+          "name": "Add Like",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/interactions/likes/:spotify_track_id",
+              "host": ["{{base_url}}"],
+              "path": ["music", "interactions", "likes", ":spotify_track_id"],
+              "variable": [
+                {
+                  "key": "spotify_track_id",
+                  "value": "1v4L8x9z706qJcO5zD6YvB",
+                  "description": "El ID de la canción en Spotify"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remove Like",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/interactions/likes/:spotify_track_id",
+              "host": ["{{base_url}}"],
+              "path": ["music", "interactions", "likes", ":spotify_track_id"],
+              "variable": [
+                {
+                  "key": "spotify_track_id",
+                  "value": "1v4L8x9z706qJcO5zD6YvB",
+                  "description": "El ID de la canción en Spotify"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Likes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/interactions/likes",
+              "host": ["{{base_url}}"],
+              "path": ["music", "interactions", "likes"]
+            }
+          }
+        },
+        {
+          "name": "Register Playback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"spotify_track_id\": \"1v4L8x9z706qJcO5zD6YvB\",\n  \"seconds_played\": 45,\n  \"reached_end\": false,\n  \"was_skipped\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/music/interactions/playback",
+              "host": ["{{base_url}}"],
+              "path": ["music", "interactions", "playback"]
+            }
+          }
+        },
+        {
+          "name": "Sync Liked Songs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/interactions/sync",
+              "host": ["{{base_url}}"],
+              "path": ["music", "interactions", "sync"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Playlists",
+      "item": [
+        {
+          "name": "List Playlists",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/playlists",
+              "host": ["{{base_url}}"],
+              "path": ["music", "playlists"]
+            }
+          }
+        },
+        {
+          "name": "Get Playlist Tracks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/playlists/:playlist_id/tracks",
+              "host": ["{{base_url}}"],
+              "path": ["music", "playlists", ":playlist_id", "tracks"],
+              "variable": [
+                {
+                  "key": "playlist_id",
+                  "value": "3cEYpjA9oz9m3VqwvQaHLK",
+                  "description": "El ID de la playlist en Spotify"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Playlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mi Nueva Playlist desde La Camisa Negra\",\n  \"description\": \"Generada automáticamente probando el microservicio\",\n  \"public\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/music/playlists",
+              "host": ["{{base_url}}"],
+              "path": ["music", "playlists"]
+            }
+          }
+        },
+        {
+          "name": "Add Tracks to Playlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"track_ids\": [\n    \"1v4L8x9z706qJcO5zD6YvB\",\n    \"6rqhFgbbKwnb9MLmUQDhG6\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/music/playlists/:playlist_id/tracks",
+              "host": ["{{base_url}}"],
+              "path": ["music", "playlists", ":playlist_id", "tracks"],
+              "variable": [
+                {
+                  "key": "playlist_id",
+                  "value": "3cEYpjA9oz9m3VqwvQaHLK",
+                  "description": "El ID de la playlist en Spotify"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remove Tracks from Playlist",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"track_ids\": [\n    \"1v4L8x9z706qJcO5zD6YvB\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/music/playlists/:playlist_id/tracks",
+              "host": ["{{base_url}}"],
+              "path": ["music", "playlists", ":playlist_id", "tracks"],
+              "variable": [
+                {
+                  "key": "playlist_id",
+                  "value": "3cEYpjA9oz9m3VqwvQaHLK",
+                  "description": "El ID de la playlist en Spotify"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "TU_JWT_AQUI",
+      "type": "string"
+    }
+  ]
+}
