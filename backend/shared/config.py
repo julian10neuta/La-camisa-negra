@@ -1,27 +1,37 @@
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
+
 class Settings(BaseSettings):
     # Infraestructura
     DATABASE_URL: str = "postgresql://admin:secretpassword@localhost:5432/la_camisa_negra"
-    REDIS_URL: str = "redis://localhost:6379/0"
-    
-    # Spotify (Las agregamos porque las vas a necesitar pronto)
+
+    # Redis
+    REDIS_HOST: str = "redis_cache"
+    REDIS_PORT: int = 6379
+
+    # Spotify
     SPOTIFY_CLIENT_ID: str = ""
     SPOTIFY_CLIENT_SECRET: str = ""
     SPOTIFY_REDIRECT_URI: str = ""
-    
-    # Otras variables
-    ENV: str = "development"
-    OPENAI_API_KEY: str = ""
-    CHROMA_HOST: str = "localhost"
-    CHROMA_PORT: int = 8003
 
+    # Auth
     SECRET_KEY: str = ""
-    ALGORITHM: str = "HS256"    
+    ALGORITHM: str = "HS256"
+
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+
+    # Chroma
+    CHROMA_HOST: str = "chroma_db"
+    CHROMA_PORT: int = 8000
+
+    # General
+    ENV: str = "development"
 
     class Config:
         env_file = Path(__file__).resolve().parent.parent.parent / ".env"
-        extra = "ignore"  # <-- ESTA ES LA LÍNEA MÁGICA QUE SOLUCIONA EL ERROR
+        extra = "ignore"
+
 
 settings = Settings()

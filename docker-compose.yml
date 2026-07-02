@@ -53,6 +53,7 @@ services:
     volumes:
       - ./backend/authentication_service:/app/authentication_service
       - ./backend/shared:/app/shared
+      - ./backend/migrations:/app/migrations
     depends_on:
       - postgres_db
     networks:
@@ -70,6 +71,26 @@ services:
       - .env
     volumes:
       - ./backend/api_gateway:/app/api_gateway
+      - ./backend/shared:/app/shared
+    depends_on:
+      - postgres_db
+      - redis_cache
+      - authentication_service
+    networks:
+      - app_network
+
+  music_service:
+    build:
+      context: ./backend
+      dockerfile: music_service/Dockerfile
+    container_name: la_camisa_negra_music
+    restart: always
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/music_service:/app/music_service
       - ./backend/shared:/app/shared
     depends_on:
       - postgres_db

@@ -6,7 +6,7 @@ from alembic import context
 # 1. Importamos tus settings y tu Base
 from shared.config import settings
 from shared.database import Base
-from shared.models import User
+from shared.models import Interaction, RecommendationPlaylist, Song, User
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
