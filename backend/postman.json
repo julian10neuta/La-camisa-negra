@@ -316,6 +316,31 @@
               ]
             }
           }
+        },
+        {
+          "name": "Remove Playlist from Library",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/music/playlists/:playlist_id",
+              "host": ["{{base_url}}"],
+              "path": ["music", "playlists", ":playlist_id"],
+              "variable": [
+                {
+                  "key": "playlist_id",
+                  "value": "3cEYpjA9oz9m3VqwvQaHLK",
+                  "description": "El ID de la playlist en Spotify"
+                }
+              ]
+            }
+          }
         }
       ]
     }

@@ -216,3 +216,25 @@ class SpotifyService:
                 },
             )
         response.raise_for_status()
+
+    async def remove_playlist_from_library(
+        self,
+        playlist_id: str,
+        access_token: str,
+    ) -> None:
+        print(f"DEBUG remove_playlist token: '{access_token[:30]}...'")
+        print(f"DEBUG remove_playlist id: '{playlist_id}'")
+
+        # Formateamos el URI tal cual como lo exige el nuevo estándar
+        playlist_uri = f"spotify:playlist:{playlist_id}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"{self.BASE_URL}/me/library",
+                params={"uris": playlist_uri},  # httpx se encarga de codificar el %3A y la coma automáticamente
+                headers=self._headers(access_token),
+            )
+
+        print(f"DEBUG remove_playlist status: {response.status_code}")
+        # Al ser un borrado exitoso, Spotify devolverá 200 OK con un body vacío
+        response.raise_for_status()
