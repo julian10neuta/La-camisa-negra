@@ -3,14 +3,51 @@
 # (music_service, recommendation_service). Antes vivía dentro de music_service;
 # se movió a shared/ para no duplicarlo cuando el recommendation_service también
 # necesita hablar con Spotify.
+import asyncio
 import httpx
 
 
 class SpotifyService:
     BASE_URL = "https://api.spotify.com/v1"
+    _MAX_RETRIES = 3            # reintentos ante un 429 transitorio
+    _MAX_BACKOFF_SECONDS = 8    # tope de espera: un ban largo se propaga, no se duerme
 
     def _headers(self, access_token: str) -> dict:
         return {"Authorization": f"Bearer {access_token}"}
+
+    async def _get(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        access_token: str,
+        params: dict | None = None,
+    ) -> httpx.Response:
+        """
+        GET a Spotify con reintentos ante 429 (rate limit) respetando el header
+        Retry-After, con backoff ACOTADO: si Spotify pide esperar más que
+        _MAX_BACKOFF_SECONDS (bloqueo prolongado), no dormimos — dejamos que el
+        429 suba — para no colgar la petición del usuario minutos u horas.
+        Reintentar solo las esperas cortas evita que un pico momentáneo escale
+        al bloqueo largo (que es justo lo que nos baneó la app).
+        """
+        response = await client.get(
+            url, params=params, headers=self._headers(access_token)
+        )
+        for _ in range(self._MAX_RETRIES):
+            if response.status_code != 429:
+                break
+            retry_after = response.headers.get("Retry-After")
+            try:
+                wait = int(retry_after) if retry_after is not None else 1
+            except ValueError:
+                wait = 1
+            if wait > self._MAX_BACKOFF_SECONDS:
+                break
+            await asyncio.sleep(wait)
+            response = await client.get(
+                url, params=params, headers=self._headers(access_token)
+            )
+        return response
 
     # ─── Canciones ───────────────────────────────────────────────────────────
 
@@ -21,28 +58,27 @@ class SpotifyService:
         limit: int = 10,
     ) -> list[dict]:
         async with httpx.AsyncClient() as client:
-            response = await client.get(
+            response = await self._get(
+                client,
                 f"{self.BASE_URL}/search",
+                access_token,
                 params={"q": query, "type": "track", "limit": limit},
-                headers=self._headers(access_token),
             )
         response.raise_for_status()
         return response.json()["tracks"]["items"]
 
     async def get_track(self, track_id: str, access_token: str) -> dict:
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.BASE_URL}/tracks/{track_id}",
-                headers=self._headers(access_token),
+            response = await self._get(
+                client, f"{self.BASE_URL}/tracks/{track_id}", access_token
             )
         response.raise_for_status()
         return response.json()
 
     async def get_artist(self, artist_id: str, access_token: str) -> dict:
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.BASE_URL}/artists/{artist_id}",
-                headers=self._headers(access_token),
+            response = await self._get(
+                client, f"{self.BASE_URL}/artists/{artist_id}", access_token
             )
         response.raise_for_status()
         return response.json()
@@ -64,10 +100,11 @@ class SpotifyService:
         async with httpx.AsyncClient() as client:
             for i in range(0, len(unique_ids), 50):
                 batch = unique_ids[i:i + 50]
-                response = await client.get(
+                response = await self._get(
+                    client,
                     f"{self.BASE_URL}/artists",
+                    access_token,
                     params={"ids": ",".join(batch)},
-                    headers=self._headers(access_token),
                 )
                 response.raise_for_status()
                 artists.extend(a for a in response.json().get("artists", []) if a)
@@ -85,10 +122,11 @@ class SpotifyService:
         semilla de gustos para el recommendation_service.
         """
         async with httpx.AsyncClient() as client:
-            response = await client.get(
+            response = await self._get(
+                client,
                 f"{self.BASE_URL}/me/top/artists",
+                access_token,
                 params={"limit": limit, "time_range": time_range},
-                headers=self._headers(access_token),
             )
         response.raise_for_status()
         return response.json().get("items", [])
@@ -105,10 +143,11 @@ class SpotifyService:
         que ya le gustan al usuario).
         """
         async with httpx.AsyncClient() as client:
-            response = await client.get(
+            response = await self._get(
+                client,
                 f"{self.BASE_URL}/artists/{artist_id}/top-tracks",
+                access_token,
                 params={"market": market},
-                headers=self._headers(access_token),
             )
         response.raise_for_status()
         return response.json().get("tracks", [])
@@ -119,10 +158,19 @@ class SpotifyService:
         self,
         access_token: str,
         limit: int = 50,
+        known_ids: set[str] | None = None,
     ) -> list[dict]:
         """
         Usa el endpoint legacy /me/tracks que aún funciona para GET.
         El nuevo /me/library es para escritura.
+
+        Sync incremental: /me/tracks viene ordenado de más nuevo a más viejo
+        (por la fecha en que se dio el like). Si se pasa ``known_ids`` (los ids
+        que ya tenemos importados), dejamos de paginar en cuanto topamos el
+        primero de ellos: todo lo que va después también se importó en un sync
+        previo. Así, tras la primera importación, cada login cuesta ~1 llamada
+        si no hay likes nuevos. Sin ``known_ids`` se descarga la biblioteca
+        completa (comportamiento original).
         """
         all_tracks = []
         url = f"{self.BASE_URL}/me/tracks"
@@ -130,14 +178,18 @@ class SpotifyService:
 
         async with httpx.AsyncClient() as client:
             while url:
-                response = await client.get(
-                    url,
-                    params=params,
-                    headers=self._headers(access_token),
-                )
+                response = await self._get(client, url, access_token, params)
                 response.raise_for_status()
                 data = response.json()
-                all_tracks.extend(item["track"] for item in data["items"])
+                for item in data["items"]:
+                    track = item.get("track")
+                    # Spotify a veces devuelve tracks nulos (ya no disponibles).
+                    if not track or not track.get("id"):
+                        continue
+                    # Llegamos a lo ya importado → el resto también lo está.
+                    if known_ids is not None and track["id"] in known_ids:
+                        return all_tracks
+                    all_tracks.append(track)
                 url = data.get("next")
                 params = {}
 
@@ -184,11 +236,7 @@ class SpotifyService:
 
         async with httpx.AsyncClient() as client:
             while url:
-                response = await client.get(
-                    url,
-                    params=params,
-                    headers=self._headers(access_token),
-                )
+                response = await self._get(client, url, access_token, params)
                 response.raise_for_status()
                 data = response.json()
                 all_playlists.extend(data["items"])
@@ -208,11 +256,7 @@ class SpotifyService:
 
         async with httpx.AsyncClient() as client:
             while url:
-                response = await client.get(
-                    url,
-                    params=params,
-                    headers=self._headers(access_token),
-                )
+                response = await self._get(client, url, access_token, params)
                 response.raise_for_status()
                 data = response.json()
                 all_tracks.extend(

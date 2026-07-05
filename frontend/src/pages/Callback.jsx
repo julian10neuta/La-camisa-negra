@@ -27,20 +27,20 @@ export default function Callback() {
         if (!res.ok) throw new Error("Error en autenticación");
         return res.json();
       })
-      .then(async (data) => {
+      .then((data) => {
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Sincronizar liked songs de Spotify → nuestra BD
-        // No bloqueamos la navegación si falla
-        try {
-          await fetch("http://127.0.0.1:8000/music/interactions/sync", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${data.access_token}` },
-          });
-        } catch (e) {
+        // Sincronizar liked songs de Spotify → nuestra BD, en SEGUNDO PLANO.
+        // No la esperamos (nada de await): importar toda la biblioteca puede tardar
+        // varios segundos y no debe bloquear la entrada al dashboard. Si falla, se
+        // reintenta en el próximo login (el historial es aditivo).
+        fetch("http://127.0.0.1:8000/music/interactions/sync", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        }).catch((e) => {
           console.warn("Sync de liked songs falló, se reintentará en el próximo login:", e);
-        }
+        });
 
         navigate("/dashboard");
       })

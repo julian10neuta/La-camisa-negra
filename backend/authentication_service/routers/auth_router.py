@@ -67,8 +67,12 @@ async def callback(request: AuthCodeRequest, db: Session = Depends(get_db)):
             "token_type": "bearer",
             "user": {"name": user.name, "id": user.id}
         }
+    except HTTPException:
+        # Errores ya tipados (Premium, rate limit 429, code inválido…) conservan
+        # su status y mensaje en vez de aplastarse a un 400 genérico.
+        raise
     except Exception as e:
-        print("ERROR DETALLADO:", str(e))  # ← agrega esta línea
+        print("ERROR DETALLADO:", str(e))
         raise HTTPException(status_code=400, detail=str(e))
     
 

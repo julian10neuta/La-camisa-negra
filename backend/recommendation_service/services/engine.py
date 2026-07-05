@@ -42,6 +42,7 @@ N_RECOMMENDATIONS = 15
 ARTIST_ID_TTL = 60 * 60 * 24 * 30   # 30 días
 RELATED_TTL = 60 * 60 * 24 * 7      # 7 días
 TOP_TTL = 60 * 60 * 24 * 7          # 7 días
+MATCH_TTL = 60 * 60 * 24 * 30       # 30 días — emparejado Deezer→Spotify (estable)
 
 
 def serialize_track(track: dict) -> dict:
@@ -200,12 +201,24 @@ class RecommendationEngine:
     async def _match_spotify(self, title: str, artist: str, token: str):
         """
         Empareja una canción de Deezer con Spotify por título+artista (el /top de
-        Deezer no trae ISRC). Si el filtro por campos no acierta, reintenta simple.
+        Deezer no trae ISRC). Cacheado en Redis: el emparejado título+artista →
+        track de Spotify es estable y no depende del usuario, así que regenerar
+        (o recomendar para otro usuario) reusa el resultado en vez de repetir la
+        búsqueda en Spotify — que era la ráfaga que más pesaba en el rate limit.
+        Se cachea también el "no encontrado" (null) para no reintentar fallos.
         """
         title = (title or "").replace('"', "").strip()
         artist = (artist or "").replace('"', "").strip()
         if not title:
             return None
+        key = f"spotify:match:{title.lower()}|{artist.lower()}"
+        return await self._cached(
+            key, MATCH_TTL, lambda: self._search_match(title, artist, token)
+        )
+
+    async def _search_match(self, title: str, artist: str, token: str):
+        """Búsqueda real en Spotify (sin caché). Si el filtro por campos no
+        acierta, reintenta con una búsqueda simple."""
         for query in (f'track:"{title}" artist:"{artist}"', f"{title} {artist}"):
             try:
                 items = await self.spotify.search_tracks(query, token, limit=1)

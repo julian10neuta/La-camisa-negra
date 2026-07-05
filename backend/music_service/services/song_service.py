@@ -59,18 +59,14 @@ class SongService:
         """
         song = SongRepository.get_by_spotify_track_id(self.db, spotify_track_id)
         if song:
-            # Auto-sanado: si se cacheó sin género (p. ej. importada del login),
-            # aprovechamos esta interacción para llenarlo — el motor lo necesita.
-            if not song.genres:
-                genres = await self.fetch_track_genres(spotify_track_id, access_token)
-                if genres:
-                    SongRepository.set_genres(self.db, song, genres)
             return song
 
+        # No pedimos géneros a Spotify: los devuelve vacíos para esta app (por eso
+        # el motor usa Deezer). Guardar sin género evita una llamada inútil por
+        # canción. El enriquecimiento manual sigue en POST /music/songs/refresh-genres.
         track_data = await self.spotify_service.get_track(
             spotify_track_id, access_token
         )
-        track_data["genres"] = await self._genres_from_track(track_data, access_token)
         return SongRepository.create_from_spotify_data(self.db, track_data)
 
     async def get_or_cache_many(
@@ -93,26 +89,11 @@ class SongService:
 
         new_tracks = [t for t in tracks_data if t["id"] not in existing_map]
 
-        # Enriquecer géneros EN LOTE para las nuevas: los géneros viven en el
-        # artista, así que pedimos /artists?ids= (hasta 50 por llamada) en vez de
-        # una llamada por canción. Antes el sync guardaba sin género y eso dejaba
-        # ciego al motor de recomendación sobre la biblioteca del usuario.
-        artist_ids = [
-            t["artists"][0]["id"]
-            for t in new_tracks
-            if t.get("artists") and t["artists"][0].get("id")
-        ]
-        genres_by_artist: dict = {}
-        if artist_ids:
-            artists = await self.spotify_service.get_artists_batch(
-                artist_ids, access_token
-            )
-            genres_by_artist = {a["id"]: (a.get("genres") or []) for a in artists}
-
+        # No pedimos géneros a Spotify: los devuelve vacíos para esta app (el motor
+        # usa Deezer). Antes esto hacía una tanda de /artists?ids= por cada import;
+        # eran llamadas puro desperdicio que sumaban al rate limit. Guardamos sin
+        # género (la columna queda inerte; el motor no depende de ella).
         for track in new_tracks:
-            aid = track["artists"][0]["id"] if track.get("artists") else None
-            g = genres_by_artist.get(aid, [])
-            track["genres"] = ",".join(g) if g else None
             result.append(SongRepository.create_from_spotify_data(self.db, track))
 
         return result

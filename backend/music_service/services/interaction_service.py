@@ -198,9 +198,26 @@ class InteractionService:
         """
         Importa las Liked Songs del usuario desde Spotify hacia nuestra BD.
         Se llama en cada login — solo agrega, nunca borra (historial inmutable).
+
+        Es INCREMENTAL: solo trae de Spotify los likes nuevos desde el último
+        sync. Armamos el conjunto de los que ya tenemos y se lo pasamos a
+        get_liked_songs, que deja de paginar al toparlos (vienen de más nuevo a
+        más viejo). La primera vez baja la biblioteca completa; los logins
+        siguientes cuestan ~1 llamada si no hay likes nuevos.
+
         Retorna el número de likes nuevos añadidos.
         """
-        tracks_data = await self.spotify_service.get_liked_songs(access_token)
+        known_ids = {
+            song.spotify_track_id
+            for _, song in InteractionRepository.list_favorites(self.db, user_id)
+        }
+
+        tracks_data = await self.spotify_service.get_liked_songs(
+            access_token, known_ids=known_ids
+        )
+        if not tracks_data:
+            return 0
+
         songs = await self.song_service.get_or_cache_many(
             tracks_data, access_token
         )
