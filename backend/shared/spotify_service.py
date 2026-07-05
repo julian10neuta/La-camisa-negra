@@ -1,4 +1,8 @@
-# music_service/services/spotify_service.py
+# shared/spotify_service.py
+# Cliente HTTP de la Spotify Web API, compartido por todos los microservicios
+# (music_service, recommendation_service). Antes vivía dentro de music_service;
+# se movió a shared/ para no duplicarlo cuando el recommendation_service también
+# necesita hablar con Spotify.
 import httpx
 
 
@@ -42,6 +46,72 @@ class SpotifyService:
             )
         response.raise_for_status()
         return response.json()
+
+    async def get_artists_batch(
+        self,
+        artist_ids: list[str],
+        access_token: str,
+    ) -> list[dict]:
+        """
+        GET /artists?ids= — hasta 50 artistas por llamada. Devuelve los objetos
+        de artista (que incluyen `genres`). Para el recommendation_service:
+        enriquecer en lote los géneros de muchas canciones candidatas sin hacer
+        una llamada por artista.
+        """
+        artists: list[dict] = []
+        # Deduplicamos preservando orden.
+        unique_ids = list(dict.fromkeys(a for a in artist_ids if a))
+        async with httpx.AsyncClient() as client:
+            for i in range(0, len(unique_ids), 50):
+                batch = unique_ids[i:i + 50]
+                response = await client.get(
+                    f"{self.BASE_URL}/artists",
+                    params={"ids": ",".join(batch)},
+                    headers=self._headers(access_token),
+                )
+                response.raise_for_status()
+                artists.extend(a for a in response.json().get("artists", []) if a)
+        return artists
+
+    async def get_top_artists(
+        self,
+        access_token: str,
+        limit: int = 10,
+        time_range: str = "medium_term",
+    ) -> list[dict]:
+        """
+        GET /me/top/artists — los artistas más escuchados del usuario (calculado
+        por Spotify). Sigue disponible pese a las restricciones y es una gran
+        semilla de gustos para el recommendation_service.
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.BASE_URL}/me/top/artists",
+                params={"limit": limit, "time_range": time_range},
+                headers=self._headers(access_token),
+            )
+        response.raise_for_status()
+        return response.json().get("items", [])
+
+    async def get_artist_top_tracks(
+        self,
+        artist_id: str,
+        access_token: str,
+        market: str = "US",
+    ) -> list[dict]:
+        """
+        GET /artists/{id}/top-tracks — las canciones más populares de un artista.
+        Fuente de candidatas "seguras" para el recommendation_service (artistas
+        que ya le gustan al usuario).
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.BASE_URL}/artists/{artist_id}/top-tracks",
+                params={"market": market},
+                headers=self._headers(access_token),
+            )
+        response.raise_for_status()
+        return response.json().get("tracks", [])
 
     # ─── Biblioteca (Liked Songs) ─────────────────────────────────────────────
 
@@ -145,7 +215,6 @@ class SpotifyService:
                 )
                 response.raise_for_status()
                 data = response.json()
-                print(f"DEBUG items[0]: {data['items'][0] if data['items'] else 'VACÍO'}")
                 all_tracks.extend(
                     item["item"] for item in data["items"] if item.get("item")
                 )
@@ -181,18 +250,14 @@ class SpotifyService:
         access_token: str,
     ) -> None:
         uris = [f"spotify:track:{tid}" for tid in track_ids]
-        print(f"DEBUG uris a agregar: {uris}")
         async with httpx.AsyncClient() as client:
             for i in range(0, len(uris), 100):
                 batch = uris[i:i + 100]
-                print(f"DEBUG batch: {batch}")
                 response = await client.post(
                     f"{self.BASE_URL}/playlists/{playlist_id}/items",
                     json={"uris": batch},
                     headers=self._headers(access_token),
                 )
-                print(f"DEBUG add_tracks status: {response.status_code}")
-                print(f"DEBUG add_tracks body: {response.text}")
                 response.raise_for_status()
 
     async def remove_tracks_from_playlist(
