@@ -9,15 +9,22 @@ class TokenService:
         self.db = db
         self.refresh_url = "https://accounts.spotify.com/api/token"
 
-    async def get_valid_spotify_token(self, spotify_id: str) -> str:
+    async def get_valid_spotify_token(self, spotify_id: str) -> tuple[str, datetime]:
+        """
+        Devuelve (access_token, token_expiry) — el token vigente de Spotify y el
+        instante UTC en el que expira. Se devuelve la expiración además del token
+        para que los servicios que lo cachean (shared/token_service.py) puedan
+        ajustar su TTL a la vida real que le queda al token, y no caer en servir
+        un token ya invalidado por un refresh.
+        """
         user = UserRepository.get_by_spotify_id(self.db, spotify_id)
-        
+
         if not user:
             raise ValueError(f"Usuario {spotify_id} no encontrado")
 
         # Si el token no ha expirado, lo devolvemos directo
         if datetime.utcnow() < user.token_expiry:
-            return user.access_token
+            return user.access_token, user.token_expiry
 
         # Si expiró, pedimos uno nuevo a Spotify
         async with httpx.AsyncClient() as client:
@@ -30,7 +37,7 @@ class TokenService:
                     "client_secret": settings.SPOTIFY_CLIENT_SECRET,
                 }
             )
-        
+
         token_data = response.json()
 
         if "access_token" not in token_data:
@@ -45,4 +52,4 @@ class TokenService:
             token_expiry=new_expiry
         )
 
-        return token_data["access_token"]
+        return token_data["access_token"], new_expiry

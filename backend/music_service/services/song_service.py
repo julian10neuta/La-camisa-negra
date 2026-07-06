@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from shared.models import Song
 from ..repositories.song_repository import SongRepository
-from .spotify_service import SpotifyService
+from shared.spotify_service import SpotifyService
 
 
 class SongService:
@@ -18,6 +18,32 @@ class SongService:
         una Interaction (ahí sí necesitamos un song_id interno).
         """
         return await self.spotify_service.search_tracks(query, access_token, limit)
+
+    async def _genres_from_track(
+        self,
+        track_data: dict,
+        access_token: str,
+    ) -> str | None:
+        """Los géneros viven en el artista, no en el track. Devuelve string o None."""
+        artists = track_data.get("artists") or []
+        if not artists or not artists[0].get("id"):
+            return None
+        artist_data = await self.spotify_service.get_artist(
+            artists[0]["id"], access_token
+        )
+        genres = artist_data.get("genres") or []
+        return ",".join(genres) if genres else None
+
+    async def fetch_track_genres(
+        self,
+        spotify_track_id: str,
+        access_token: str,
+    ) -> str | None:
+        """Consulta a Spotify los géneros de una canción dada por su id."""
+        track_data = await self.spotify_service.get_track(
+            spotify_track_id, access_token
+        )
+        return await self._genres_from_track(track_data, access_token)
 
     async def get_or_cache(
         self,
@@ -35,20 +61,12 @@ class SongService:
         if song:
             return song
 
+        # No pedimos géneros a Spotify: los devuelve vacíos para esta app (por eso
+        # el motor usa Deezer). Guardar sin género evita una llamada inútil por
+        # canción. El enriquecimiento manual sigue en POST /music/songs/refresh-genres.
         track_data = await self.spotify_service.get_track(
             spotify_track_id, access_token
         )
-
-        # Intentamos obtener genres del artista (viven en el artista, no en el track)
-        genres = None
-        if track_data.get("artists"):
-            artist_id = track_data["artists"][0]["id"]
-            artist_data = await self.spotify_service.get_artist(
-                artist_id, access_token
-            )
-            genres = ",".join(artist_data.get("genres", []))
-
-        track_data["genres"] = genres
         return SongRepository.create_from_spotify_data(self.db, track_data)
 
     async def get_or_cache_many(
@@ -69,12 +87,13 @@ class SongService:
 
         result = list(existing)
 
-        for track in tracks_data:
-            if track["id"] not in existing_map:
-                # genres en batch: usamos lo que venga en el track_data
-                # (la importación de liked songs no trae genres del artista,
-                # se puede enriquecer después como optimización)
-                song = SongRepository.create_from_spotify_data(self.db, track)
-                result.append(song)
+        new_tracks = [t for t in tracks_data if t["id"] not in existing_map]
+
+        # No pedimos géneros a Spotify: los devuelve vacíos para esta app (el motor
+        # usa Deezer). Antes esto hacía una tanda de /artists?ids= por cada import;
+        # eran llamadas puro desperdicio que sumaban al rate limit. Guardamos sin
+        # género (la columna queda inerte; el motor no depende de ella).
+        for track in new_tracks:
+            result.append(SongRepository.create_from_spotify_data(self.db, track))
 
         return result

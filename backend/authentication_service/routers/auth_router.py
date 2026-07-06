@@ -67,8 +67,12 @@ async def callback(request: AuthCodeRequest, db: Session = Depends(get_db)):
             "token_type": "bearer",
             "user": {"name": user.name, "id": user.id}
         }
+    except HTTPException:
+        # Errores ya tipados (Premium, rate limit 429, code inválido…) conservan
+        # su status y mensaje en vez de aplastarse a un 400 genérico.
+        raise
     except Exception as e:
-        print("ERROR DETALLADO:", str(e))  # ← agrega esta línea
+        print("ERROR DETALLADO:", str(e))
         raise HTTPException(status_code=400, detail=str(e))
     
 
@@ -80,8 +84,10 @@ async def get_spotify_token(spotify_id: str, db: Session = Depends(get_db)):
     """
     token_service = TokenService(db=db)
     try:
-        access_token = await token_service.get_valid_spotify_token(spotify_id)
-        return {"access_token": access_token}
+        access_token, token_expiry = await token_service.get_valid_spotify_token(spotify_id)
+        # expires_at en ISO 8601 (UTC, naive) — lo consume shared/token_service.py
+        # para cachear el token solo por la vida que le queda realmente.
+        return {"access_token": access_token, "expires_at": token_expiry.isoformat()}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     

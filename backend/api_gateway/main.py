@@ -18,6 +18,7 @@ app.add_middleware(
 SERVICES = {
     "auth":  "http://authentication_service:8001",
     "music": "http://music_service:8002",
+    "recommendation": "http://recommendation_service:8004",
 }
 
 
@@ -34,7 +35,9 @@ async def proxy_request(target_url: str, request: Request, extra_headers: dict =
     query_params = dict(request.query_params)
     body = await request.body()
 
-    async with httpx.AsyncClient() as client:
+    # Timeout amplio: generar recomendaciones hace decenas de llamadas a Deezer +
+    # Spotify y puede tardar ~15-30s. El default de httpx (5s) cortaba con 503.
+    async with httpx.AsyncClient(timeout=120) as client:
         try:
             response = await client.request(
                 method=method,
@@ -83,6 +86,25 @@ async def proxy_music(path: str, request: Request):
     spotify_id = extract_spotify_id_from_request(request)
 
     target_url = f"{SERVICES['music']}/music/{path}"
+
+    return await proxy_request(
+        target_url,
+        request,
+        extra_headers={"X-Spotify-ID": spotify_id},
+    )
+
+
+# ─── Rutas protegidas: recommendation ────────────────────────────────────────
+
+@app.api_route("/recommendations/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_recommendation(path: str, request: Request):
+    """
+    Rutas del recommendation_service — requieren JWT válido.
+    Igual que music: el gateway valida el token e inyecta X-Spotify-ID.
+    """
+    spotify_id = extract_spotify_id_from_request(request)
+
+    target_url = f"{SERVICES['recommendation']}/recommendations/{path}"
 
     return await proxy_request(
         target_url,

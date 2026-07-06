@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..dependencies import get_redis
 from shared.database import get_db
-from ..services.token_service import TokenService
-from ..services.spotify_service import SpotifyService
+from shared.token_service import TokenService
+from shared.spotify_service import SpotifyService
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 
@@ -87,3 +87,14 @@ async def remove_tracks(
         playlist_id, payload.track_ids, token
     )
     return {"detail": f"{len(payload.track_ids)} canciones eliminadas"}
+
+
+@router.delete("/{playlist_id}", status_code=200)
+async def remove_playlist(
+    playlist_id: str,
+    x_spotify_id: str = Header(...),
+    redis=Depends(get_redis),
+):
+    token = await TokenService(redis).get_token(x_spotify_id)
+    await _spotify_service().remove_playlist_from_library(playlist_id, token)
+    return {"detail": "playlist eliminada de la biblioteca"}
