@@ -49,7 +49,7 @@ export default function Layout({ children }) {
         <nav className="topnav__links">
           <Item to="/dashboard" icon="▦" label="Dashboard" />
           <Item to="/search" icon="⌕" label="Búsqueda" />
-          <Item icon="≡" label="Playlists" disabled />
+          <Item to="/playlists" icon="≡" label="Playlists" />
           <Item icon="💬" label="Chat IA" disabled />
         </nav>
       </header>

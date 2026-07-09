@@ -131,6 +131,27 @@ export async function getSpotifyToken(spotifyId) {
   return data.access_token;
 }
 
+// ─── Playlists ─────────────────────────────────────────────────────────────
+
+export async function createPlaylist(name, description = "", isPublic = false) {
+  const res = await fetch(`${GATEWAY}/music/playlists`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description, public: isPublic }),
+  });
+  await ensureOk(res);
+  return res.json(); // { id, name }
+}
+
+export async function listPlaylists() {
+  const res = await fetch(`${GATEWAY}/music/playlists`, {
+    headers: authHeaders(),
+  });
+  await ensureOk(res)
+  return res.json(); // [{id, name}]
+
+}
+
 // ─── Recomendaciones ──────────────────────────────────────────────────────────
 
 // Devuelve { tracks, playlist_id, playlist_url, generated }.

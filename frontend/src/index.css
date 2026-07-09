@@ -906,3 +906,47 @@ button {
   gap: 4px;
   margin-top: 8px;
 }
+
+/* ============================================================================
+   Playlists
+   ========================================================================== */
+
+.playlist-counter {
+  color: var(--text-faint);
+  font-size: 14px;
+  margin-top: 18px;
+  line-height: 1.5;
+}
+
+.album-cell {
+  display: flex;
+  align-items: center;
+  justify-content: left;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.16), rgba(168, 85, 247, 0.14));
+  border: 1px solid rgba(236, 72, 153, 0.22);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  opacity: 0.8;
+}
+
+.playlist-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.playlist-table td {
+  padding: 10x 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.playlist-table tbody tr:hover {
+  background: var(--bg-elev);
+}

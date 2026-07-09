@@ -20,6 +20,7 @@ function App() {
           <Route path="/callback"  element={<Callback />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search"    element={<Search />} />
+          <Route path="/playlists" element={<PlaylistGallery />} />
         </Routes>
         <NowPlaying />
       </PlayerProvider>

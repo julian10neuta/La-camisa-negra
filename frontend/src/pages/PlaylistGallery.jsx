@@ -1,40 +1,84 @@
-function PlaylistGallery() {
-  const createPlaylist = () => {
+import { createPlaylist as createPlaylistRequest, listPlaylists } from '../api';
+import { useEffect, useState } from "react";
+import Layout from "../components/Layout";
 
-  }
+function PlaylistGallery() {
+  const [playlists, setPlaylists] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPlaylists = async () => {
+      try {
+        const data = await listPlaylists();
+        setPlaylists(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPlaylists();
+  }, []);
+
+  const handleCreatePlaylist = async () => {
+    try {
+      const newPlaylist = await createPlaylistRequest(
+        'Mi playlist desde La Camisa Negra',
+        'Creada desde el frontend',
+        false
+      );
+      setPlaylists((prev) => [newPlaylist, ...prev]);
+      console.log('Playlist creada:', newPlaylist);
+      alert(`Playlist creada: ${newPlaylist.name}`);
+    } catch (error) {
+      console.error(error);
+      alert('No se pudo crear la playlist');
+    }
+  };
 
   const showPlaylists = () => {
-    var playlists = []
-
-    for(var i = 0; i < 3; i++) {
-      playlists.push(
-        <button key={i} onClick={() => {}}>
-          Playlist {i + 1}
-        </button>)
+    if (loading) {
+      return <p>Cargando playlists...</p>;
     }
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'flex-start' }}>
-        {playlists}
-      </div>
-    )
-  }
+      <table className="playlist-table">
+        <tbody>
+          {playlists.map((playlist, index) => (
+            <tr>
+              <div key={playlist.id} className="album-cell">
+                <span className="track-cover" />
+                <span> {playlist.name} </span>
+              </div>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+    <Layout>
+      <div>
+        <div className="dash-header">
           <div>
-            <h1>Mis playlists</h1>
+            <h1 className="page-title">Mis playlists</h1>
+            <p className="playlist-counter">
+              {playlists.length} playlist{playlists.length === 1 ? "" : "s"}
+            </p>
           </div>
           <div>
-            <button onClick={createPlaylist}>
-            Crear playlist
-          </button>
+            <button className="btn" onClick={handleCreatePlaylist}>
+              Crear playlist
+            </button>
           </div>
+        </div>
       </div>
-        {showPlaylists()}
-    </div>
-  )
+
+      {showPlaylists()}
+    </Layout>
+  );
 }
 
-export default PlaylistGallery
+export default PlaylistGallery;
