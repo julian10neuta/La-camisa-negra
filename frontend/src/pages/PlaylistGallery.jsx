@@ -1,13 +1,21 @@
-import { createPlaylist as createPlaylistRequest, listPlaylists } from '../api';
+import { createPlaylist as createPlaylistRequest, 
+  listPlaylists,
+  getToken } from '../api';
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 
 function PlaylistGallery() {
+  const navigate = useNavigate();
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadPlaylists = async () => {
+      if (!getToken()){
+        navigate("/");
+        return;
+      }
       try {
         const data = await listPlaylists();
         setPlaylists(data);
@@ -46,11 +54,13 @@ function PlaylistGallery() {
       <table className="playlist-table">
         <tbody>
           {playlists.map((playlist, index) => (
-            <tr>
-              <div key={playlist.id} className="album-cell">
-                <span className="track-cover" />
-                <span> {playlist.name} </span>
-              </div>
+            <tr key={playlist.id}>
+              <td>
+                <div className="album-cell">
+                  <span className="playlist-cover" />
+                  <span>{playlist.name}</span>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
