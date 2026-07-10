@@ -961,3 +961,13 @@ button {
   background: var(--bg-elev-2);
   flex-shrink: 0;
 }
+
+.playlist-visualization {
+  background-color: white;
+  left : 20%;
+  right: 20%;
+}
+
+.go-back-btn {
+  background: var(--accent-soft);
+}

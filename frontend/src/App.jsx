@@ -5,9 +5,11 @@ import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Callback from './pages/Callback'  // <-- agrega este
 import PlaylistGallery from './pages/PlaylistGallery'
+import PlaylistDetail from './pages/PlaylistDetail'
 import Search from './pages/Search'
 import { PlayerProvider } from './player/PlayerContext'
 import NowPlaying from './components/NowPlaying'
+
 
 function App() {
   return (
@@ -21,6 +23,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search"    element={<Search />} />
           <Route path="/playlists" element={<PlaylistGallery />} />
+          <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />
         </Routes>
         <NowPlaying />
       </PlayerProvider>

@@ -45,6 +45,12 @@ function PlaylistGallery() {
     }
   };
 
+  const detailPlaylist = (playlist_id) => {
+    
+    navigate(`/playlists/${playlist_id}`);
+    return;
+  }
+
   const showPlaylists = () => {
     if (loading) {
       return <p>Cargando playlists...</p>;
@@ -54,7 +60,7 @@ function PlaylistGallery() {
       <table className="playlist-table">
         <tbody>
           {playlists.map((playlist, index) => (
-            <tr key={playlist.id}>
+            <tr key={playlist.id} onClick={() => detailPlaylist(playlist.id)}>
               <td>
                 <div className="album-cell">
                   <span className="playlist-cover" />

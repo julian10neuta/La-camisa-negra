@@ -152,6 +152,23 @@ export async function listPlaylists() {
 
 }
 
+export const getPlaylistTracksById = async (playlistId) => {
+  if (!playlistId) {
+    throw new Error("Falta el id de la playlist");
+  }
+
+  const response = await fetch(`${GATEWAY}/music/playlists/${playlistId}/tracks`, {
+    method: "GET",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo obtener la playlist");
+  }
+
+  return response.json();
+};
+
 // ─── Recomendaciones ──────────────────────────────────────────────────────────
 
 // Devuelve { tracks, playlist_id, playlist_url, generated }.
