@@ -21,7 +21,13 @@ async def list_playlists(
 ):
     token = await TokenService(redis).get_token(x_spotify_id)
     playlists = await _spotify_service().get_user_playlists(token)
-    return [{"id": p["id"], "name": p["name"]} for p in playlists]
+
+    owned_playlists = [
+        {"id": p["id"], "name": p["name"]}
+        for p in playlists
+        if p.get("owner", {}).get("id") == x_spotify_id
+    ]
+    return owned_playlists
 
 
 @router.get("/{playlist_id}/tracks")

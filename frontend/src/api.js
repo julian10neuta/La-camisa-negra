@@ -30,7 +30,15 @@ export function getSpotifyId() {
 }
 
 export function authHeaders() {
-  return { Authorization: `Bearer ${getToken()}` };
+  
+  const headers = { Authorization: `Bearer ${getToken()}` };
+  const spotifyId = getSpotifyId();
+  if (spotifyId) {
+    headers["x_spotify_id"] = spotifyId;
+  }
+  return headers;
+  
+  //return { Authorization: `Bearer ${getToken()}` };
 }
 
 // Lanza un error legible si la respuesta no es 2xx.
@@ -137,7 +145,7 @@ export async function createPlaylist(name, description = "", isPublic = false) {
   const res = await fetch(`${GATEWAY}/music/playlists`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify({ name, description, public: isPublic }),
+    body: JSON.stringify({ name, description, public: isPublic }), // for now
   });
   await ensureOk(res);
   return res.json(); // { id, name }
@@ -153,21 +161,14 @@ export async function listPlaylists() {
 }
 
 export const getPlaylistTracksById = async (playlistId) => {
-  if (!playlistId) {
-    throw new Error("Falta el id de la playlist");
-  }
-
   const response = await fetch(`${GATEWAY}/music/playlists/${playlistId}/tracks`, {
     method: "GET",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    headers: authHeaders()
   });
 
-  if (!response.ok) {
-    throw new Error("No se pudo obtener la playlist");
-  }
-
+  await ensureOk(response)
   return response.json();
-};
+}; // {id}
 
 // ─── Recomendaciones ──────────────────────────────────────────────────────────
 
