@@ -1,5 +1,5 @@
 # music_service/routers/playlists.py
-from backend.music_service.serializers import song_serializer
+from music_service.serializers import song_serializer
 from fastapi import APIRouter, Header, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -39,7 +39,7 @@ async def get_playlist_tracks(
 ):
     token = await TokenService(redis).get_token(x_spotify_id)
     tracks = await _spotify_service().get_playlist_tracks(playlist_id, token)
-    return [song_serializer(track) for track in tracks]
+    return [song_serializer._serialize_track(track) for track in tracks]
 
 class CreatePlaylistPayload(BaseModel):
     name: str
