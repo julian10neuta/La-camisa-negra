@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import { PlayerProvider } from './player/PlayerContext'
 import { SettingsProvider } from './settings/SettingsContext'
 import NowPlaying from './components/NowPlaying'
+import Aurora from './components/Aurora'
 
 function App() {
   return (
@@ -18,6 +19,9 @@ function App() {
           (autoplay), y ambos van por encima de las rutas: así la música y las
           preferencias sobreviven a la navegación. */}
       <SettingsProvider>
+        {/* Fondo de la ventana. Va aquí, fuera de las rutas, para que sea el
+            mismo y no se reinicie al navegar de una pantalla a otra. */}
+        <Aurora />
         {/* El reproductor vive por encima de las rutas: así la música y su estado
             persisten al navegar. El overlay NowPlaying se monta una sola vez. */}
         <PlayerProvider>

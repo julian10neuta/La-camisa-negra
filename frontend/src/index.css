@@ -586,8 +586,10 @@ button {
    Login
    ========================================================================== */
 
+/* El fondo del Login eran dos degradados fijos — la versión quieta de la misma
+   idea que la aurora. Ahora la aurora lo hace por él y en movimiento, así que
+   esta pantalla se deja transparente para no taparla. */
 .login-screen {
-  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -595,10 +597,7 @@ button {
   justify-content: center;
   overflow: hidden;
   padding: 24px;
-  background:
-    radial-gradient(1100px 700px at 20% 10%, rgba(var(--accent-2-rgb), 0.22), transparent 60%),
-    radial-gradient(900px 600px at 85% 30%, rgba(var(--accent-rgb), 0.14), transparent 55%),
-    var(--bg);
+  background: transparent;
 }
 
 .login-card {
@@ -1395,4 +1394,103 @@ button {
 .palette-card__swatches[data-preview="default"] {
   --accent:   #ec4899;
   --accent-2: #a855f7;
+}
+
+/* ============================================================================
+   Aurora — el fondo de la ventana
+   Tres manchas de color muy desenfocadas que se desplazan despacio por detrás
+   de todo. Los colores salen de las variables del tema, así que la aurora sigue
+   a la paleta que el usuario elija en Ajustes.
+
+   Sobre el rendimiento: solo se anima `transform`. Es la única propiedad (junto
+   con `opacity`) que el navegador puede mover en la GPU sin volver a calcular ni
+   a pintar el resto de la página. Animar `left`/`top` o el degradado en sí
+   obligaría a repintar en cada fotograma y con un desenfoque de 70px encima
+   sería un horno.
+
+   Sobre "reducir movimiento": no hace falta apagar nada aquí. Los keyframes
+   empiezan y terminan en la MISMA posición (0% y 100% idénticos), así que cuando
+   la regla global de movimiento congela la animación, las manchas se quedan justo
+   en su posición de reposo y la aurora se ve como un fondo estático normal.
+   ========================================================================== */
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;  /* no debe robar clics a la app que tiene encima */
+  contain: paint;        /* aísla el repintado: no molesta al resto del árbol */
+}
+
+.aurora__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+
+.aurora__blob--1 {
+  width: 60vw;
+  height: 60vw;
+  top: -20vw;
+  left: -15vw;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.45), transparent 70%);
+  animation: aurora-drift-1 28s ease-in-out infinite;
+}
+
+.aurora__blob--2 {
+  width: 55vw;
+  height: 55vw;
+  top: 10vh;
+  right: -18vw;
+  background: radial-gradient(circle, rgba(var(--accent-2-rgb), 0.4), transparent 70%);
+  animation: aurora-drift-2 34s ease-in-out infinite;
+}
+
+.aurora__blob--3 {
+  width: 50vw;
+  height: 50vw;
+  bottom: -22vw;
+  left: 25vw;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.3), transparent 70%);
+  animation: aurora-drift-3 41s ease-in-out infinite;
+}
+
+/* Las tres duraciones son distintas y no múltiplos entre sí (28/34/41s): así el
+   conjunto tarda muchísimo en repetir la misma composición y no se percibe el
+   bucle. */
+
+@keyframes aurora-drift-1 {
+  0%,
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(14vw, 10vh, 0) scale(1.18); }
+}
+
+@keyframes aurora-drift-2 {
+  0%,
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-12vw, 14vh, 0) scale(0.88); }
+}
+
+@keyframes aurora-drift-3 {
+  0%,
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(10vw, -12vh, 0) scale(1.12); }
+}
+
+/* Alto contraste: la aurora se atenúa mucho. El contraste del texto se mide
+   contra lo que tiene detrás, y unas manchas de color a todo brillo debajo de
+   las superficies translúcidas trabajan justo en contra de lo que el usuario
+   pidió al activar este ajuste. */
+html[data-contrast="high"] .aurora {
+  opacity: 0.25;
+}
+
+/* Las pantallas van POR ENCIMA de la aurora. Sin esto quedarían por debajo y no
+   se verían: la aurora es fixed y ocupa toda la ventana. */
+.app-shell,
+.login-screen {
+  position: relative;
+  z-index: 1;
 }
