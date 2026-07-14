@@ -1,6 +1,7 @@
 import './App.css'
 import { BrowserRouter } from 'react-router-dom'
 import { Routes, Route } from 'react-router-dom'
+import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Callback from './pages/Callback'
@@ -17,6 +18,7 @@ function App() {
         <Routes>
           <Route path="/"          element={<Login />} />
           <Route path="/callback"  element={<Callback />} />
+          <Route path="/home"      element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search"    element={<Search />} />
         </Routes>

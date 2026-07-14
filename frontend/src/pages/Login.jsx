@@ -6,9 +6,9 @@
 // reintentar.
 // ----------------------------------------------------------------------------
 
-import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { getLoginUrl } from "../api";
+import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { getLoginUrl, getToken } from "../api";
 
 // Barras decorativas del fondo (alturas variadas para el efecto de ecualizador).
 function AudioBars() {
@@ -26,9 +26,16 @@ export default function Login() {
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState(null);
   const [params] = useSearchParams();
+  const navigate = useNavigate();
 
   // Si Callback nos devolvió aquí con ?error=..., mostramos el aviso.
   const oauthError = params.get("error");
+
+  // Si ya hay sesión activa (y no venimos de un error de OAuth), entramos
+  // directo al Home apenas se abre la app, sin pasar por esta pantalla.
+  useEffect(() => {
+    if (getToken() && !oauthError) navigate("/home", { replace: true });
+  }, [navigate, oauthError]);
 
   const handleLogin = async () => {
     setError(null);

@@ -188,10 +188,37 @@ button {
   z-index: 10;
 }
 
+.topnav__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .topnav__links {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Cerrar sesión: mismo lenguaje que los navlink, pero con borde para que se lea
+   como una acción y no como una pestaña más. */
+.btn-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-logout:hover {
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
 }
 
 .navlink {
@@ -905,4 +932,118 @@ button {
   display: flex;
   gap: 4px;
   margin-top: 8px;
+}
+
+/* ============================================================================
+   Home — bienvenida + accesos rápidos (genérico por ahora)
+   ========================================================================== */
+
+.home-hero {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 34px 32px;
+  margin-bottom: 34px;
+  background:
+    radial-gradient(700px 300px at 12% 0%, rgba(236, 72, 153, 0.16), transparent 60%),
+    radial-gradient(600px 300px at 88% 20%, rgba(99, 102, 241, 0.16), transparent 60%),
+    var(--bg-elev);
+}
+
+.home-hero__eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.home-hero__title {
+  font-size: 34px;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
+.home-hero__subtitle {
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 560px;
+}
+
+.home-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 16px;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  color: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.home-card:not(.is-disabled):hover {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+}
+
+.home-card:not(.is-disabled):active {
+  transform: translateY(1px);
+}
+
+.home-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.home-card__title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.home-card__desc {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.home-card__badge {
+  align-self: flex-start;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.home-card.is-disabled {
+  opacity: 0.6;
+  cursor: default;
 }

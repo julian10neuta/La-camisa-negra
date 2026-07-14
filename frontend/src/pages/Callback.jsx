@@ -42,7 +42,7 @@ export default function Callback() {
           console.warn("Sync de liked songs falló, se reintentará en el próximo login:", e);
         });
 
-        navigate("/dashboard");
+        navigate("/home");
       })
       .catch(() => {
         navigate("/?error=auth_failed");
