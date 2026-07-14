@@ -25,6 +25,22 @@ class Song(Base):
     genres = Column(String)  # feature para recommendation_service (KMeans)
     duration_ms = Column(Integer)  # pendiente de decisión de equipo sobre umbral de skip
 
+    # album y cover_url EXISTIERON y se quitaron en 48f053f ("starting with
+    # routers", 2026-07-01), sin motivo documentado. Vuelven a propósito, y
+    # conviene saber por qué para no volver a quitarlas:
+    #
+    #  1. El documento de análisis las pide: la entidad "Canción" lista Álbum y
+    #     Portada entre sus atributos.
+    #  2. Guardarlas es GRATIS: el objeto de Spotify que recibe
+    #     SongRepository.create_from_spotify_data ya trae album.name y
+    #     album.images. Antes se descartaban.
+    #  3. No guardarlas es CARO: /tracks?ids= (el lote) devuelve 403 para esta
+    #     app, así que recuperarlas después cuesta UNA llamada por canción —
+    #     justo la ráfaga que hizo que Spotify baneara la app. Ese dato no se
+    #     conocía cuando se quitaron.
+    album = Column(String)
+    cover_url = Column(String)
+
 
 class Interaction(Base):
     __tablename__ = "interactions"
