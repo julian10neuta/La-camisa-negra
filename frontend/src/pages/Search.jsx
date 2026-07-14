@@ -11,8 +11,8 @@
 // páginas/servicios de UI).
 // ----------------------------------------------------------------------------
 
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../components/Layout";
 import { usePlayer } from "../player/PlayerContext";
 import {
@@ -38,8 +38,11 @@ function formatDuration(ms) {
 export default function Search() {
   const navigate = useNavigate();
   const player = usePlayer();
+  const [searchParams] = useSearchParams();
 
-  const [query, setQuery] = useState("");
+  // Se puede llegar con la búsqueda ya escrita en la URL (/search?q=…), que es
+  // lo que hace el buscador del Home. Arrancamos el input con ese valor.
+  const [query, setQuery] = useState(() => searchParams.get("q") || "");
   const [submittedQuery, setSubmittedQuery] = useState(""); // término ya buscado
   const [results, setResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -63,9 +66,10 @@ export default function Search() {
       .catch(() => {});
   }, [navigate]);
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    const q = query.trim();
+  // La búsqueda en sí, separada del submit del formulario para poder dispararla
+  // también desde el ?q= de la URL (ver el efecto de abajo).
+  const runSearch = useCallback(async (raw) => {
+    const q = (raw || "").trim();
     if (!q) return;
 
     setLoading(true);
@@ -81,7 +85,22 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    runSearch(query);
   };
+
+  // Si se llega con ?q= (desde el buscador del Home), buscar al entrar sin que el
+  // usuario tenga que volver a darle a Buscar.
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) {
+      setQuery(q);
+      runSearch(q);
+    }
+  }, [searchParams, runSearch]);
 
   const resetSearch = () => {
     setQuery("");
