@@ -154,6 +154,104 @@ class InteractionRepository:
             .all()
         )
 
+    # ─── Top-5 del Dashboard ─────────────────────────────────────────────────
+    # Los tres siguen el mismo patrón: contar reproducciones desde `since`,
+    # agrupar, y quedarse con las que más suenan. Cambia solo por qué se agrupa.
+    #
+    # Solo cuentan las de tipo "play" (escuchas de verdad, ya filtradas por el
+    # umbral del interaction_service). Un "like" no es una escucha, y un "skip"
+    # es lo contrario de un favorito: meterlos aquí inflaría el ranking con
+    # canciones que el usuario no aguanta.
+
+    @staticmethod
+    def get_top_songs(db: Session, user_id: int, since: datetime, limit: int = 5) -> list[tuple]:
+        """Las canciones más reproducidas. Devuelve (Song, nº de reproducciones)."""
+        from shared.models import Song
+        from sqlalchemy import func
+
+        n = func.count(Interaction.id).label("plays")
+        return (
+            db.query(Song, n)
+            .join(Interaction, Interaction.song_id == Song.id)
+            .filter(
+                Interaction.user_id == user_id,
+                Interaction.date >= since,
+                Interaction.type == "play",
+            )
+            .group_by(Song.id)
+            .order_by(n.desc())
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def get_top_artists(db: Session, user_id: int, since: datetime, limit: int = 5) -> list[dict]:
+        """
+        Los artistas más reproducidos.
+
+        Dos avisos sobre lo que NO se puede dar aquí, y no es por falta de ganas:
+          - **Sin foto del artista.** Spotify la tiene, pero solo en /artists, y
+            nosotros no guardamos el id del artista (Song solo tiene su nombre).
+            Se usa la carátula de una de sus canciones como sustituto.
+          - **Sin género.** El mockup los pinta con "R&B / Pop" debajo, pero
+            Spotify devuelve `genres` VACÍO para esta app (por eso el motor de
+            recomendaciones tira de Deezer). Song.genres está a NULL en las 29
+            canciones de la base. No hay de dónde sacarlo.
+        """
+        from shared.models import Song
+        from sqlalchemy import func
+
+        n = func.count(Interaction.id).label("plays")
+        rows = (
+            db.query(Song.artist, n, func.max(Song.cover_url).label("cover_url"))
+            .join(Interaction, Interaction.song_id == Song.id)
+            .filter(
+                Interaction.user_id == user_id,
+                Interaction.date >= since,
+                Interaction.type == "play",
+            )
+            .group_by(Song.artist)
+            .order_by(n.desc())
+            .limit(limit)
+            .all()
+        )
+        return [{"artist": a, "plays": int(p), "cover_url": c} for a, p, c in rows]
+
+    @staticmethod
+    def get_top_albums(db: Session, user_id: int, since: datetime, limit: int = 5) -> list[dict]:
+        """
+        Los álbumes más reproducidos.
+
+        Se agrupa por (álbum, artista) y no solo por álbum: hay títulos de disco
+        repetidos entre artistas distintos ("Greatest Hits" hay a cientos), y
+        agrupar solo por nombre los mezclaría en una fila sin sentido.
+
+        Las canciones sin álbum se excluyen en vez de agruparse en un cajón
+        "None": una fila vacía en un top-5 es ruido, no información.
+        """
+        from shared.models import Song
+        from sqlalchemy import func
+
+        n = func.count(Interaction.id).label("plays")
+        rows = (
+            db.query(Song.album, Song.artist, n, func.max(Song.cover_url).label("cover_url"))
+            .join(Interaction, Interaction.song_id == Song.id)
+            .filter(
+                Interaction.user_id == user_id,
+                Interaction.date >= since,
+                Interaction.type == "play",
+                Song.album.isnot(None),
+            )
+            .group_by(Song.album, Song.artist)
+            .order_by(n.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {"album": al, "artist": ar, "plays": int(p), "cover_url": c}
+            for al, ar, p, c in rows
+        ]
+
     @staticmethod
     def get_stats(db: Session, user_id: int, since: datetime) -> dict:
         """

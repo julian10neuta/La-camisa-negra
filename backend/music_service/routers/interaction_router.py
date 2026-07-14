@@ -1,5 +1,4 @@
 # music_service/routers/interactions.py
-import json
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Header, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -165,60 +164,11 @@ async def sync_liked_songs(
 
 # ─── Historial y estadísticas (Home) ──────────────────────────────────────────
 
-# 30 días: la carátula y el álbum de una canción no cambian. El mismo TTL que usa
-# el motor para su caché de emparejados (recommendation_service/services/engine.py).
-TRACK_META_TTL = 60 * 60 * 24 * 30
-
-
-async def _track_meta(redis, spotify_ids: list[str], token: str) -> dict[str, dict]:
-    """
-    Carátula y álbum de cada canción, cacheados en Redis.
-
-    Por qué de una en una y no en lote: **GET /tracks?ids= devuelve 403** para
-    esta app (probado el 2026-07-14 con token real) — otra de las restricciones de
-    Spotify de 2024. Solo funciona /tracks/{id}, individual.
-
-    Y por qué la caché no es opcional: sin ella, cada visita al Home dispararía una
-    ráfaga de llamadas, que es exactamente lo que hizo que banearan la app (ver
-    Explicacion/09). Con ella, una canción se pregunta una vez cada 30 días. La
-    clave es global (no por usuario) porque la carátula de una canción es la misma
-    para todo el mundo.
-    """
-    out: dict[str, dict] = {}
-    missing: list[str] = []
-
-    for tid in spotify_ids:
-        cached = redis.get(f"spotify:track_meta:{tid}")
-        if cached is not None:
-            out[tid] = json.loads(cached)
-        else:
-            missing.append(tid)
-
-    if missing:
-        spotify = SpotifyService()
-        for tid in missing:
-            try:
-                track = await spotify.get_track(tid, token)
-            except Exception:
-                continue  # esta canción se queda sin carátula; las demás no sufren
-            album = track.get("album") or {}
-            images = album.get("images") or []
-            meta = {
-                "album": album.get("name"),
-                "cover_url": images[0]["url"] if images else None,
-            }
-            redis.setex(f"spotify:track_meta:{tid}", TRACK_META_TTL, json.dumps(meta))
-            out[tid] = meta
-
-    return out
-
-
 @router.get("/history")
 async def recent_plays(
     limit: int = Query(8, ge=1, le=50),
     x_spotify_id: str = Header(...),
     db: Session = Depends(get_db),
-    redis=Depends(get_redis),
 ):
     """
     "Sigue escuchando": las últimas canciones reproducidas, sin repetidos.
@@ -227,36 +177,74 @@ async def recent_plays(
     artist, album, cover_url, duration_ms) para que el reproductor pueda
     consumirlas igual, más `last_played`.
 
-    La carátula y el álbum NO están en nuestra tabla `Song` (ver shared/models.py),
-    así que se piden a Spotify y se cachean. Si Spotify falla, se devuelve lo local
-    sin carátula en vez de romper el Home: la portada es decoración, no vale la
-    pena tumbar la pantalla por ella.
+    **Cero llamadas a Spotify.** Sale entero de nuestra base.
+
+    Antes esto pedía la carátula de cada canción a Spotify y la cacheaba en Redis
+    (un helper _track_meta de ~40 líneas), porque `Song` no guardaba ni álbum ni
+    portada. Era una ráfaga de hasta 8 llamadas por visita al Home — la pantalla de
+    entrada de la app — y contribuyó al segundo baneo. Ahora las columnas existen y
+    se rellenan al cachear la canción, con el dato que Spotify ya nos había dado.
+    Ver la migración b1c4e7d9f2a3.
     """
     user_id = _get_user_id(db, x_spotify_id)
     rows = InteractionRepository.get_recent_plays(db, user_id, limit)
-    if not rows:
-        return []
 
-    meta: dict = {}
-    try:
-        token = await TokenService(redis).get_token(x_spotify_id)
-        meta = await _track_meta(redis, [s.spotify_track_id for s, _ in rows], token)
-    except Exception:
-        pass  # sin token no hay carátulas, pero el historial se devuelve igual
-
-    result = []
-    for song, last_played in rows:
-        m = meta.get(song.spotify_track_id) or {}
-        result.append({
+    return [
+        {
             "spotify_track_id": song.spotify_track_id,
             "name": song.name,
             "artist": song.artist,
-            "album": m.get("album"),
-            "cover_url": m.get("cover_url"),
+            "album": song.album,
+            "cover_url": song.cover_url,
             "duration_ms": song.duration_ms,
             "last_played": last_played.isoformat() if last_played else None,
-        })
-    return result
+        }
+        for song, last_played in rows
+    ]
+
+
+@router.get("/top")
+async def top_of_window(
+    days: int = Query(7, ge=1, le=365),
+    limit: int = Query(5, ge=1, le=20),
+    x_spotify_id: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Los tres rankings del Dashboard para una ventana de tiempo: canciones,
+    artistas y álbumes más escuchados. El diseño pide 24h y 7 días, que aquí son
+    `days=1` y `days=7`.
+
+    Van los tres en una sola respuesta a propósito: el Dashboard los pinta juntos,
+    siempre de la misma ventana. Tres endpoints separados serían tres viajes para
+    montar una pantalla que es una.
+
+    **Cero llamadas a Spotify.** Sale entero de nuestra base — incluidas las
+    carátulas, desde que Song las guarda (ver migración b1c4e7d9f2a3).
+    """
+    user_id = _get_user_id(db, x_spotify_id)
+    since = datetime.utcnow() - timedelta(days=days)
+
+    songs = InteractionRepository.get_top_songs(db, user_id, since, limit)
+
+    return {
+        "days": days,
+        "since": since.isoformat(),
+        "songs": [
+            {
+                "spotify_track_id": s.spotify_track_id,
+                "name": s.name,
+                "artist": s.artist,
+                "album": s.album,
+                "cover_url": s.cover_url,
+                "duration_ms": s.duration_ms,
+                "plays": int(plays),
+            }
+            for s, plays in songs
+        ],
+        "artists": InteractionRepository.get_top_artists(db, user_id, since, limit),
+        "albums": InteractionRepository.get_top_albums(db, user_id, since, limit),
+    }
 
 
 @router.get("/stats")
