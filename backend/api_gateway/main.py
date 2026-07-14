@@ -18,6 +18,7 @@ app.add_middleware(
 SERVICES = {
     "auth":  "http://authentication_service:8001",
     "music": "http://music_service:8002",
+    "dashboard": "http://dashboard_service:8005",
     "recommendation": "http://recommendation_service:8004",
 }
 
@@ -86,6 +87,31 @@ async def proxy_music(path: str, request: Request):
     spotify_id = extract_spotify_id_from_request(request)
 
     target_url = f"{SERVICES['music']}/music/{path}"
+
+    return await proxy_request(
+        target_url,
+        request,
+        extra_headers={"X-Spotify-ID": spotify_id},
+    )
+
+
+# ─── Rutas protegidas: dashboard ─────────────────────────────────────────────
+
+@app.api_route("/dashboard{path:path}", methods=["GET"])
+async def proxy_dashboard(path: str, request: Request):
+    """
+    Rutas del dashboard_service — requieren JWT válido.
+
+    Nota sobre el patrón de la ruta: es "/dashboard{path:path}" y no
+    "/dashboard/{path:path}" como las demás, porque este servicio expone la raíz
+    ("/dashboard", sin nada detrás). Con la barra obligatoria, GET /dashboard no
+    casaría con nada y daría 404.
+
+    Solo GET: este servicio no escribe nada, solo lee y compone.
+    """
+    spotify_id = extract_spotify_id_from_request(request)
+
+    target_url = f"{SERVICES['dashboard']}/dashboard{path}"
 
     return await proxy_request(
         target_url,

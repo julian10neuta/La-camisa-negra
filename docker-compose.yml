@@ -119,6 +119,30 @@ services:
     networks:
       - app_network
 
+  # No tiene base de datos ni Redis: no guarda nada. Solo llama a music_service y
+  # a recommendation_service y junta sus respuestas (patrón API Composition), así
+  # que depende de ellos y de nadie más.
+  dashboard_service:
+    build:
+      context: ./backend
+      dockerfile: dashboard_service/Dockerfile
+    container_name: la_camisa_negra_dashboard
+    restart: always
+    ports:
+      # 8005 y no 8003: el 8003 ya lo publica chroma_db (hacia su 8000 interno),
+      # cosa que no se ve de un vistazo porque los números no coinciden.
+      - "8005:8005"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/dashboard_service:/app/dashboard_service
+      - ./backend/shared:/app/shared
+    depends_on:
+      - music_service
+      - recommendation_service
+    networks:
+      - app_network
+
 volumes:
   postgres_data:
   redis_data:
