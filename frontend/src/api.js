@@ -108,6 +108,29 @@ export async function listDislikes() {
   return res.json(); // [{ spotify_track_id }]
 }
 
+// ─── Historial y estadísticas (Home) ──────────────────────────────────────────
+
+// "Sigue escuchando": últimas canciones reproducidas, sin repetidos. Vienen con
+// la misma forma que las recomendaciones (+ last_played), así que el reproductor
+// las acepta tal cual.
+export async function getHistory(limit = 8) {
+  const res = await fetch(`${GATEWAY}/music/interactions/history?limit=${limit}`, {
+    headers: authHeaders(),
+  });
+  await ensureOk(res);
+  return res.json();
+}
+
+// "Tu semana en Wavely": { plays, distinct_songs, seconds_listened, top_artist,
+// top_artist_plays, days, since }. Sale entero de nuestra base, sin tocar Spotify.
+export async function getStats(days = 7) {
+  const res = await fetch(`${GATEWAY}/music/interactions/stats?days=${days}`, {
+    headers: authHeaders(),
+  });
+  await ensureOk(res);
+  return res.json();
+}
+
 // ─── Reproducción ─────────────────────────────────────────────────────────────
 
 // Reporta el resultado de una reproducción para alimentar las recomendaciones.

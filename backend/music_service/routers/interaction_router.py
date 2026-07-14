@@ -1,5 +1,7 @@
 # music_service/routers/interactions.py
-from fastapi import APIRouter, Header, Depends, HTTPException
+import json
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Header, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..dependencies import get_redis
@@ -159,6 +161,120 @@ async def sync_liked_songs(
 
     new_likes = await service.sync_liked_songs_from_spotify(user_id, token)
     return {"detail": f"{new_likes} canciones nuevas sincronizadas"}
+
+
+# ─── Historial y estadísticas (Home) ──────────────────────────────────────────
+
+# 30 días: la carátula y el álbum de una canción no cambian. El mismo TTL que usa
+# el motor para su caché de emparejados (recommendation_service/services/engine.py).
+TRACK_META_TTL = 60 * 60 * 24 * 30
+
+
+async def _track_meta(redis, spotify_ids: list[str], token: str) -> dict[str, dict]:
+    """
+    Carátula y álbum de cada canción, cacheados en Redis.
+
+    Por qué de una en una y no en lote: **GET /tracks?ids= devuelve 403** para
+    esta app (probado el 2026-07-14 con token real) — otra de las restricciones de
+    Spotify de 2024. Solo funciona /tracks/{id}, individual.
+
+    Y por qué la caché no es opcional: sin ella, cada visita al Home dispararía una
+    ráfaga de llamadas, que es exactamente lo que hizo que banearan la app (ver
+    Explicacion/09). Con ella, una canción se pregunta una vez cada 30 días. La
+    clave es global (no por usuario) porque la carátula de una canción es la misma
+    para todo el mundo.
+    """
+    out: dict[str, dict] = {}
+    missing: list[str] = []
+
+    for tid in spotify_ids:
+        cached = redis.get(f"spotify:track_meta:{tid}")
+        if cached is not None:
+            out[tid] = json.loads(cached)
+        else:
+            missing.append(tid)
+
+    if missing:
+        spotify = SpotifyService()
+        for tid in missing:
+            try:
+                track = await spotify.get_track(tid, token)
+            except Exception:
+                continue  # esta canción se queda sin carátula; las demás no sufren
+            album = track.get("album") or {}
+            images = album.get("images") or []
+            meta = {
+                "album": album.get("name"),
+                "cover_url": images[0]["url"] if images else None,
+            }
+            redis.setex(f"spotify:track_meta:{tid}", TRACK_META_TTL, json.dumps(meta))
+            out[tid] = meta
+
+    return out
+
+
+@router.get("/history")
+async def recent_plays(
+    limit: int = Query(8, ge=1, le=50),
+    x_spotify_id: str = Header(...),
+    db: Session = Depends(get_db),
+    redis=Depends(get_redis),
+):
+    """
+    "Sigue escuchando": las últimas canciones reproducidas, sin repetidos.
+
+    Devuelve la misma forma que las recomendaciones (spotify_track_id, name,
+    artist, album, cover_url, duration_ms) para que el reproductor pueda
+    consumirlas igual, más `last_played`.
+
+    La carátula y el álbum NO están en nuestra tabla `Song` (ver shared/models.py),
+    así que se piden a Spotify y se cachean. Si Spotify falla, se devuelve lo local
+    sin carátula en vez de romper el Home: la portada es decoración, no vale la
+    pena tumbar la pantalla por ella.
+    """
+    user_id = _get_user_id(db, x_spotify_id)
+    rows = InteractionRepository.get_recent_plays(db, user_id, limit)
+    if not rows:
+        return []
+
+    meta: dict = {}
+    try:
+        token = await TokenService(redis).get_token(x_spotify_id)
+        meta = await _track_meta(redis, [s.spotify_track_id for s, _ in rows], token)
+    except Exception:
+        pass  # sin token no hay carátulas, pero el historial se devuelve igual
+
+    result = []
+    for song, last_played in rows:
+        m = meta.get(song.spotify_track_id) or {}
+        result.append({
+            "spotify_track_id": song.spotify_track_id,
+            "name": song.name,
+            "artist": song.artist,
+            "album": m.get("album"),
+            "cover_url": m.get("cover_url"),
+            "duration_ms": song.duration_ms,
+            "last_played": last_played.isoformat() if last_played else None,
+        })
+    return result
+
+
+@router.get("/stats")
+async def listening_stats(
+    days: int = Query(7, ge=1, le=365),
+    x_spotify_id: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    """
+    "Tu semana en Wavely": cuántas canciones escuchó el usuario, cuánto tiempo y
+    quién fue su artista más escuchado en los últimos `days` días.
+
+    Todo sale de nuestra propia base de datos: cero llamadas a Spotify.
+    """
+    user_id = _get_user_id(db, x_spotify_id)
+    since = datetime.utcnow() - timedelta(days=days)
+    stats = InteractionRepository.get_stats(db, user_id, since)
+    return {**stats, "days": days, "since": since.isoformat()}
 
 
 # ─── Helper interno ───────────────────────────────────────────────────────────
