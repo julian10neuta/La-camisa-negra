@@ -34,7 +34,7 @@ function Dashboard() {
 
   const [tracks, setTracks] = useState([]);
   const [playlistUrl, setPlaylistUrl] = useState(null);
-  const [meta, setMeta] = useState({ period: null, nextRefresh: null });
+  const [meta, setMeta] = useState({ period: null, nextRefresh: null, stale: false });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -46,7 +46,14 @@ function Dashboard() {
     setPlaylistUrl(data.playlist_url || null);
     // El período que se muestra es el que respondió el backend, no el del
     // ajuste: si alguna vez difirieran, lo cierto es lo que se está pintando.
-    setMeta({ period: data.period, nextRefresh: data.next_refresh });
+    // `stale` = la lista sigue siendo la última que hay, pero ya tocaba
+    // renovarla. Leer NO regenera (regenerar son ~30-50 llamadas a Spotify y
+    // eso ya nos costó dos baneos), así que se lo ofrecemos al usuario.
+    setMeta({
+      period: data.period,
+      nextRefresh: data.next_refresh,
+      stale: data.stale,
+    });
   };
 
   // Likes y dislikes: solo dependen del usuario, se piden una vez.
@@ -146,10 +153,25 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Caducada pero con canciones: se enseñan las que hay y se ofrece
+          actualizar. Leer ya no regenera solo — regenerar tarda ~17s y son
+          decenas de llamadas a Spotify, así que lo decide el usuario. */}
+      {!loading && meta.stale && tracks.length > 0 && (
+        <div className="dash-stale">
+          <span>
+            <strong>Tus recomendaciones caducaron.</strong> Estas son las últimas
+            que generamos.
+          </span>
+          <button className="btn" onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? "Actualizando…" : "↻ Actualizar ahora"}
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="state">
           <span className="state__icon">✦</span>
-          <p className="state__hint">Generando recomendaciones…</p>
+          <p className="state__hint">Cargando tus recomendaciones…</p>
         </div>
       )}
 
@@ -160,14 +182,25 @@ function Dashboard() {
         </div>
       )}
 
+      {/* Vacío: antes esta pantalla las generaba sola al abrirse. Ahora hay que
+          pedirlas — el botón tarda unos segundos y es el único sitio desde el que
+          se dispara. */}
       {!loading && !error && tracks.length === 0 && (
         <div className="state">
           <span className="state__icon">✦</span>
-          <p className="state__title">Aún no hay recomendaciones</p>
+          <p className="state__title">Aún no tienes recomendaciones</p>
           <p className="state__hint">
-            Reproduce, marca favoritos y descarta algunas canciones en la Búsqueda.
-            Con esas señales el motor arma tus recomendaciones.
+            Cuantas más canciones reproduzcas, marques como favoritas o descartes,
+            mejores serán. Cuando quieras, genéralas — tarda unos segundos.
           </p>
+          <button
+            className="btn"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{ marginTop: 18 }}
+          >
+            {refreshing ? "Generando…" : "✦ Generar mis recomendaciones"}
+          </button>
         </div>
       )}
 

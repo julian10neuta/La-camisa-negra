@@ -99,7 +99,9 @@ export default function Home() {
   const { period, recCount } = settings;
 
   const [query, setQuery] = useState("");
-  const [recs, setRecs] = useState({ tracks: [], period: null, nextRefresh: null });
+  const [recs, setRecs] = useState({
+    tracks: [], period: null, nextRefresh: null, stale: false,
+  });
   const [recsState, setRecsState] = useState("loading"); // loading | ready | error
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
@@ -127,6 +129,7 @@ export default function Home() {
           tracks: d.tracks || [],
           period: d.period,
           nextRefresh: d.next_refresh,
+          stale: d.stale,
         });
         setRecsState("ready");
       })
@@ -200,7 +203,7 @@ export default function Home() {
         {recsState === "loading" && (
           <div className="state">
             <span className="state__icon">✦</span>
-            <p className="state__hint">Buscando canciones para ti…</p>
+            <p className="state__hint">Cargando tus recomendaciones…</p>
           </div>
         )}
 
@@ -211,14 +214,20 @@ export default function Home() {
           </div>
         )}
 
+        {/* Vacío. El Home NO genera: abrir la app no puede disparar una ráfaga de
+            30-50 llamadas a Spotify. Se manda al Dashboard, que es donde está el
+            botón y donde el usuario ya espera esperar unos segundos. */}
         {recsState === "ready" && recs.tracks.length === 0 && (
           <div className="state">
             <span className="state__icon">✦</span>
-            <p className="state__title">Aún no hay recomendaciones</p>
+            <p className="state__title">Aún no tienes recomendaciones</p>
             <p className="state__hint">
-              Reproduce, marca favoritos y descarta algunas canciones. Con esas
-              señales el motor arma tus recomendaciones.
+              Cuanto más escuches, mejores serán. Genéralas cuando quieras desde el
+              Dashboard.
             </p>
+            <Link to="/dashboard" className="btn" style={{ marginTop: 18 }}>
+              Ir al Dashboard
+            </Link>
           </div>
         )}
 

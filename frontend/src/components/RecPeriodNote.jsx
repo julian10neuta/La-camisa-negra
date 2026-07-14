@@ -45,8 +45,10 @@ function refreshText(nextRefresh) {
   const date = parseUtc(nextRefresh);
   if (!date) return null;
 
-  // Ya venció: la próxima vez que se abra el Dashboard, el motor la regenera.
-  if (date.getTime() <= Date.now()) return "se renueva al abrirla";
+  // Ya venció. Ojo: NO se renueva sola. Abrir la app dispararía una ráfaga de
+  // 30-50 llamadas a Spotify, y eso ya nos costó dos baneos, así que ahora
+  // regenerar es un acto explícito del usuario (el botón "Actualizar").
+  if (date.getTime() <= Date.now()) return "toca actualizarla";
 
   const days = calendarDaysUntil(date);
   if (days <= 0) return "se renueva hoy";

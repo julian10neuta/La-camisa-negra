@@ -1699,3 +1699,24 @@ html[data-contrast="high"] .aurora {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ============================================================================
+   Aviso de recomendaciones caducadas (Dashboard)
+   Leer las recomendaciones ya no las regenera —eso son ~30-50 llamadas a Spotify
+   y ~17s—, así que cuando caducan se enseñan las últimas y se ofrece el botón.
+   ========================================================================== */
+
+.dash-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+  padding: 14px 20px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 0.875rem;
+  color: var(--text);
+}
