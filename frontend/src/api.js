@@ -116,6 +116,29 @@ export async function listDislikes() {
   return res.json(); // [{ spotify_track_id }]
 }
 
+// ─── Historial y estadísticas (Home) ──────────────────────────────────────────
+
+// "Sigue escuchando": últimas canciones reproducidas, sin repetidos. Vienen con
+// la misma forma que las recomendaciones (+ last_played), así que el reproductor
+// las acepta tal cual.
+export async function getHistory(limit = 8) {
+  const res = await fetch(`${GATEWAY}/music/interactions/history?limit=${limit}`, {
+    headers: authHeaders(),
+  });
+  await ensureOk(res);
+  return res.json();
+}
+
+// "Tu semana en Wavely": { plays, distinct_songs, seconds_listened, top_artist,
+// top_artist_plays, days, since }. Sale entero de nuestra base, sin tocar Spotify.
+export async function getStats(days = 7) {
+  const res = await fetch(`${GATEWAY}/music/interactions/stats?days=${days}`, {
+    headers: authHeaders(),
+  });
+  await ensureOk(res);
+  return res.json();
+}
+
 // ─── Reproducción ─────────────────────────────────────────────────────────────
 
 // Reporta el resultado de una reproducción para alimentar las recomendaciones.
@@ -172,20 +195,33 @@ export const getPlaylistTracksById = async (playlistId) => {
 
 // ─── Recomendaciones ──────────────────────────────────────────────────────────
 
-// Devuelve { tracks, playlist_id, playlist_url, generated }.
-// Si hay una playlist reciente la devuelve tal cual; si no, la genera (puede
-// tardar unos segundos porque consulta a Spotify).
-export async function getRecommendations() {
-  const res = await fetch(`${GATEWAY}/recommendations/list`, {
+// `period` ("weekly"|"monthly") y `limit` salen de los Ajustes del usuario. Si no
+// se pasan, el backend aplica sus defaults — por eso quien no los necesite (el
+// reproductor, que solo quiere canciones para la cola) puede seguir llamando sin
+// argumentos.
+function recQuery({ period, limit } = {}) {
+  const qs = new URLSearchParams();
+  if (period) qs.set("period", period);
+  if (limit) qs.set("limit", limit);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
+// Devuelve { tracks, playlist_id, playlist_url, generated, period, last_updated,
+// next_refresh }. Si hay una playlist reciente para ese período la devuelve tal
+// cual; si no, la genera (puede tardar unos segundos porque consulta a Spotify).
+// `next_refresh` lo calcula el backend, que es quien manda sobre la caducidad.
+export async function getRecommendations(opts) {
+  const res = await fetch(`${GATEWAY}/recommendations/list${recQuery(opts)}`, {
     headers: authHeaders(),
   });
   await ensureOk(res);
   return res.json();
 }
 
-// Fuerza la regeneración de las recomendaciones.
-export async function refreshRecommendations() {
-  const res = await fetch(`${GATEWAY}/recommendations/refresh`, {
+// Fuerza la regeneración de las recomendaciones de ese período.
+export async function refreshRecommendations(opts) {
+  const res = await fetch(`${GATEWAY}/recommendations/refresh${recQuery(opts)}`, {
     method: "POST",
     headers: authHeaders(),
   });

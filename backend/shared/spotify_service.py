@@ -75,6 +75,15 @@ class SpotifyService:
         response.raise_for_status()
         return response.json()
 
+    # NO añadir un get_tracks_batch: se probó (2026-07-14, con token real) y
+    # **GET /tracks?ids= devuelve 403 Forbidden** para esta app. Es otra de las
+    # restricciones de Spotify de 2024, de la misma familia que los géneros y los
+    # artistas relacionados (ver Explicacion/04 y 14). El lote de artistas
+    # (/artists?ids=, aquí abajo) SÍ funciona; el de canciones no.
+    # Para varias canciones hay que llamar a get_track de una en una — y entonces
+    # conviene cachear, porque esas ráfagas son las que hicieron que banearan la
+    # app (ver Explicacion/09).
+
     async def get_artist(self, artist_id: str, access_token: str) -> dict:
         async with httpx.AsyncClient() as client:
             response = await self._get(

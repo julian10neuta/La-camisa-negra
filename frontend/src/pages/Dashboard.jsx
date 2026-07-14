@@ -11,7 +11,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
+import RecPeriodNote from "../components/RecPeriodNote";
 import { usePlayer } from "../player/PlayerContext";
+import { useSettings } from "../settings/SettingsContext";
 import {
   getRecommendations,
   refreshRecommendations,
@@ -27,9 +29,12 @@ import {
 function Dashboard() {
   const navigate = useNavigate();
   const player = usePlayer();
+  const { settings } = useSettings();
+  const { period, recCount } = settings;
 
   const [tracks, setTracks] = useState([]);
   const [playlistUrl, setPlaylistUrl] = useState(null);
+  const [meta, setMeta] = useState({ period: null, nextRefresh: null });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -39,8 +44,12 @@ function Dashboard() {
   const applyResult = (data) => {
     setTracks(data.tracks || []);
     setPlaylistUrl(data.playlist_url || null);
+    // El período que se muestra es el que respondió el backend, no el del
+    // ajuste: si alguna vez difirieran, lo cierto es lo que se está pintando.
+    setMeta({ period: data.period, nextRefresh: data.next_refresh });
   };
 
+  // Likes y dislikes: solo dependen del usuario, se piden una vez.
   useEffect(() => {
     if (!getToken()) {
       navigate("/");
@@ -52,18 +61,25 @@ function Dashboard() {
     listDislikes()
       .then((d) => setDislikedIds(new Set(d.map((x) => x.spotify_track_id))))
       .catch(() => {});
+  }, [navigate]);
 
-    getRecommendations()
+  // Las recomendaciones sí dependen de los ajustes: si el usuario cambia el
+  // período o el número, hay que volver a pedirlas.
+  useEffect(() => {
+    if (!getToken()) return;
+    setLoading(true);
+    setError(null);
+    getRecommendations({ period, limit: recCount })
       .then(applyResult)
       .catch(() => setError("No se pudieron cargar las recomendaciones."))
       .finally(() => setLoading(false));
-  }, [navigate]);
+  }, [period, recCount]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     setError(null);
     try {
-      applyResult(await refreshRecommendations());
+      applyResult(await refreshRecommendations({ period, limit: recCount }));
     } catch {
       setError("No se pudieron regenerar las recomendaciones.");
     } finally {
@@ -116,6 +132,7 @@ function Dashboard() {
           <p className="page-subtitle">
             Canciones nuevas según tu escucha, tus likes y tus dislikes
           </p>
+          <RecPeriodNote period={meta.period} nextRefresh={meta.nextRefresh} />
         </div>
         <div className="dash-header__actions">
           {playlistUrl && (
