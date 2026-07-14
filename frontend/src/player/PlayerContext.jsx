@@ -22,6 +22,7 @@ import {
   listLikes,
   getRecommendations,
 } from "../api";
+import { useSettings } from "../settings/SettingsContext";
 
 const PlayerContext = createContext(null);
 
@@ -44,15 +45,24 @@ function shuffle(arr) {
   return a;
 }
 
-// Construye la cola del buscador: Me gusta (70%) + recomendaciones (30%) mezcladas
+// Construye una cola de Me gusta (70%) + recomendaciones (30%) mezcladas
 // aleatoriamente, sin repetidos ni la canción semilla. Los "Me gusta" solo traen id
 // (el SDK rellena título/carátula al reproducir); las recomendaciones traen metadata.
-async function buildSearchMix(seedTrack) {
+//
+// La usan dos cosas: la cola del buscador y, si el usuario tiene el autoplay
+// activado, la prolongación de la cola cuando se agota. `excludeIds` sirve para
+// ese segundo caso: lo que acabas de escuchar no debería volver a sonar de
+// inmediato.
+async function buildSearchMix(seedTrack, excludeIds = [], recOpts = undefined) {
   const [likes, recs] = await Promise.all([
     listLikes().catch(() => []),
-    getRecommendations().then((r) => r.tracks || []).catch(() => []),
+    // recOpts lleva el período y el número que el usuario tiene en Ajustes. Sin
+    // ellos pediríamos los del backend (semanal), y a alguien que eligió
+    // "mensual" le dispararíamos la generación de una lista semanal que no ha
+    // pedido: ~17s y una playlist nueva en su Spotify para nada.
+    getRecommendations(recOpts).then((r) => r.tracks || []).catch(() => []),
   ]);
-  const seen = new Set([seedTrack.spotify_track_id]);
+  const seen = new Set([seedTrack.spotify_track_id, ...excludeIds]);
   const likePool = shuffle(
     likes.map((l) => ({ spotify_track_id: l.spotify_track_id }))
   ).filter((t) => !seen.has(t.spotify_track_id));
@@ -98,6 +108,20 @@ export function PlayerProvider({ children }) {
   const modeRef = useRef(null); // "playlist" | "search"
   const searchBuildRef = useRef(null); // promesa de construcción del mix del buscador
   const autoAdvanceRef = useRef(null); // apunta siempre al next() más reciente
+
+  // Espejo de los ajustes, por el mismo motivo que positionRef: next() se llama
+  // desde listeners del SDK, y leer el estado ahí daría el valor viejo.
+  const { settings } = useSettings();
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  // Opciones de recomendaciones para el mix (período y número del usuario).
+  const recOpts = () => ({
+    period: settingsRef.current.period,
+    limit: settingsRef.current.recCount,
+  });
 
   // ─── Registro de reproducción ──────────────────────────────────────────────
 
@@ -318,7 +342,7 @@ export function PlayerProvider({ children }) {
         modeRef.current = "search";
         queueRef.current = [track];
         // Construimos el mix en segundo plano; no bloquea la reproducción.
-        searchBuildRef.current = buildSearchMix(track)
+        searchBuildRef.current = buildSearchMix(track, [], recOpts())
           .then((mix) => {
             queueRef.current = [track, ...mix];
           })
@@ -349,7 +373,26 @@ export function PlayerProvider({ children }) {
     }
     if (indexRef.current + 1 < queueRef.current.length) {
       await playAt(indexRef.current + 1);
-    } else if (playerRef.current) {
+      return;
+    }
+
+    // Se acabó la cola. Con el autoplay activado (Ajustes) la prolongamos con un
+    // mix de tus Me gusta y tus recomendaciones, excluyendo lo que acabas de oír,
+    // en vez de cortar la música. Con el autoplay apagado, para — que era el
+    // comportamiento de siempre.
+    const seed = queueRef.current[indexRef.current];
+    if (settingsRef.current.autoplay && seed) {
+      const yaSonaron = queueRef.current.map((t) => t.spotify_track_id);
+      const mix = await buildSearchMix(seed, yaSonaron, recOpts()).catch(() => []);
+      if (mix.length) {
+        queueRef.current = [...queueRef.current, ...mix];
+        await playAt(indexRef.current + 1);
+        return;
+      }
+      // Sin nada que añadir (usuario sin likes ni recomendaciones): paramos igual.
+    }
+
+    if (playerRef.current) {
       await playerRef.current.pause(); // fin de la cola → parar
     }
   }, [playAt]);

@@ -245,6 +245,21 @@ export default function Settings() {
         />
       </section>
 
+      {/* ─── Reproducción ───────────────────────────────────────────────── */}
+      <section className="settings-section">
+        <h2 className="settings-section__title">Reproducción</h2>
+
+        <Toggle
+          label="Seguir sonando al acabarse la lista"
+          hint={
+            "Cuando se acabe lo que estás escuchando, la música continúa con una " +
+            "mezcla de tus Me gusta y tus recomendaciones. Si lo apagas, para."
+          }
+          checked={settings.autoplay}
+          onChange={(on) => set("autoplay", on)}
+        />
+      </section>
+
       <div className="settings-footer">
         <button className="btn-ghost" onClick={reset}>
           Restablecer todo
