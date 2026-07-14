@@ -5,10 +5,61 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 
+function PlaylistNameModal({ isOpen, onClose, onSubmit }) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSubmit(name.trim(), description.trim());
+    setName('');
+    setDescription('');
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div>
+          <h1 className='page-title'> Crea una nueva playlist!</h1>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div>
+            <input
+              className='input'
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="¿Cómo se llamará?"
+              autoFocus
+            />
+          </div>
+          <input
+            className='input'
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Describela un poco"
+            autoFocus
+          />
+          <div className="modal-actions">
+            <button className="btn-ghost btn" type="button" onClick={onClose}>Cancel</button>
+            <button className="btn" type="submit">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function PlaylistGallery() {
   const navigate = useNavigate();
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const loadPlaylists = async () => {
@@ -29,16 +80,15 @@ function PlaylistGallery() {
     loadPlaylists();
   }, []);
 
-  const handleCreatePlaylist = async () => {
+  const handleCreatePlaylist = async (name, description) => {
     try {
       const newPlaylist = await createPlaylistRequest(
-        'Mi playlist desde La Camisa Negra',
-        'Creada desde el frontend',
+        name,
+        description,
         false
       );
       setPlaylists((prev) => [newPlaylist, ...prev]);
       console.log('Playlist creada:', newPlaylist);
-      alert(`Playlist creada: ${newPlaylist.name}`);
     } catch (error) {
       console.error(error);
       alert('No se pudo crear la playlist');
@@ -85,9 +135,12 @@ function PlaylistGallery() {
             </p>
           </div>
           <div>
-            <button className="btn" onClick={handleCreatePlaylist}>
-              Crear playlist
-            </button>
+            <button className="btn" onClick={() => setShowModal(true)}>Crear playlist</button>
+            <PlaylistNameModal
+              isOpen={showModal}
+              onClose={() => setShowModal(false)}
+              onSubmit={handleCreatePlaylist}
+            />
           </div>
         </div>
       </div>

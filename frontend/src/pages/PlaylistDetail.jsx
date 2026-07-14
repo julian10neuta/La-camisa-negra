@@ -39,7 +39,7 @@ function PlaylistDetail(){
             try {
                 const data = await getPlaylistTracksById(playlistId);
                 const normalizedTracks = buildTrackList(data);
-                setPlaylist(/* normalizedTracks */data);
+                setPlaylist(normalizedTracks);
             } 
             catch (error) 
             {

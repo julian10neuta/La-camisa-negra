@@ -968,6 +968,42 @@ button {
   right: 20%;
 }
 
-.go-back-btn {
-  background: var(--accent-soft);
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: 
+    linear-gradient(135deg, rgba(236, 72, 153, 0.16), rgba(168, 85, 247, 0.14))
+    black;
+  padding: 24px;
+  border-radius: 50px;
+  min-width: 500px;
+  text-align: center;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal h1 {
+  margin-top: 25px;
+  margin-bottom: 50px;
+}
+
+.modal input {
+  margin-bottom: 5px;
+  field-sizing: content;
+  min-height: 40px;
+  max-height: 200px;
+  resize: none;
 }
