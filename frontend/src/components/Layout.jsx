@@ -1,7 +1,8 @@
 // src/components/Layout.jsx
 // ----------------------------------------------------------------------------
 // "Chrome" compartido de las pantallas internas: barra de navegación superior
-// (Dashboard / Búsqueda / Playlists / Chat IA) y barra de reproductor inferior.
+// (Home / Dashboard / Búsqueda / Playlists / Chat IA / Ajustes) y barra de
+// reproductor inferior.
 // El contenido de cada página se pasa como children y se pinta en el centro.
 //
 // Playlists y Chat IA todavía no tienen página, así que se muestran pero
@@ -64,6 +65,7 @@ export default function Layout({ children }) {
             <Item to="/search" icon="⌕" label="Búsqueda" />
             <Item icon="≡" label="Playlists" disabled />
             <Item icon="💬" label="Chat IA" disabled />
+            <Item to="/settings" icon="⚙" label="Ajustes" />
           </nav>
           <button className="btn-logout" onClick={logout} title="Cerrar sesión">
             <span aria-hidden="true">⎋</span> Cerrar sesión

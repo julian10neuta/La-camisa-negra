@@ -11,15 +11,7 @@ import { useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Layout from "../components/Layout";
 import { getToken } from "../api";
-
-// El nombre del usuario lo guardó el Callback en localStorage tras el login.
-function userName() {
-  try {
-    return JSON.parse(localStorage.getItem("user"))?.name || null;
-  } catch {
-    return null;
-  }
-}
+import { useDisplayName } from "../settings/SettingsContext";
 
 // Accesos rápidos. `ready:false` = sección aún sin página (se muestra inerte).
 const SHORTCUTS = [
@@ -55,7 +47,7 @@ const SHORTCUTS = [
 
 export default function Home() {
   const navigate = useNavigate();
-  const name = userName();
+  const name = useDisplayName();
 
   // Guarda de sesión: sin token, de vuelta al login (mismo patrón que Dashboard).
   useEffect(() => {
@@ -65,7 +57,12 @@ export default function Home() {
   return (
     <Layout>
       <section className="home-hero">
-        <span className="home-hero__eyebrow">Inicio</span>
+        <div className="home-hero__top">
+          <span className="home-hero__eyebrow">Inicio</span>
+          <Link to="/settings" className="btn-ghost home-hero__settings">
+            <span aria-hidden="true">⚙</span> Ajustes
+          </Link>
+        </div>
         <h1 className="home-hero__title">Hola{name ? `, ${name}` : ""} 👋</h1>
         <p className="home-hero__subtitle">
           Bienvenido a Wavely. Tu música, tus recomendaciones y tu asistente, en

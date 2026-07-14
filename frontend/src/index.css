@@ -4,12 +4,21 @@
    Aquí viven las variables de color y las clases reutilizables por todas las
    pantallas (nav, barra de reproductor, botones, inputs, tabla de resultados,
    estados vacío/sin-resultados).
+
+   Las preferencias del usuario (tamaño de letra, paleta para daltonismo, alto
+   contraste, reducir movimiento) se aplican como atributos en <html> desde
+   src/settings/settingsStore.js y aquí abajo solo redefinen estas variables.
+   Por eso ninguna pantalla necesita saber que los ajustes existen: cambia la
+   variable y cambia toda la app.
    ========================================================================== */
 
 :root {
-  /* Fondos */
+  /* Fondos. La forma "-rgb" (canales sueltos) existe para poder escribir
+     rgba(var(--bg-rgb), 0.85) en los fondos translúcidos. */
   --bg:          #0b0b13;   /* fondo general casi negro con tinte azul */
+  --bg-rgb:      11, 11, 19;
   --bg-elev:     #14141f;   /* superficies elevadas (cards, filas) */
+  --bg-elev-rgb: 20, 20, 31;
   --bg-elev-2:   #1c1c2b;   /* hover / inputs */
   --border:      #26263a;
 
@@ -20,18 +29,120 @@
 
   /* Acento (magenta/rosa Wavely) */
   --accent:        #ec4899;
+  --accent-rgb:    236, 72, 153;
   --accent-hover:  #f472b6;
-  --accent-soft:   rgba(236, 72, 153, 0.15);
+  --accent-soft:   rgba(var(--accent-rgb), 0.15);
+
+  /* Acento secundario: el violeta del degradado de marca y de los fulgores
+     de fondo. Cambia junto con el principal en las paletas de daltonismo. */
+  --accent-2:      #a855f7;
+  --accent-2-rgb:  99, 102, 241;
 
   --radius:    14px;
   --radius-sm: 10px;
 
   --font: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial,
     sans-serif;
+
+  /* Multiplicador del tamaño de letra (ver "Tamaño de letra" abajo). */
+  --font-scale: 1;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* ============================================================================
+   Tamaño de letra
+   Todos los tamaños de la hoja están en rem, es decir, relativos a este valor.
+   El 100% es el tamaño que el usuario configuró en SU navegador (16px salvo que
+   lo haya cambiado), así que multiplicamos en vez de fijar: quien ya agrandó la
+   letra del navegador conserva su preferencia y la nuestra se suma encima.
+   ========================================================================== */
+
+html {
+  font-size: calc(100% * var(--font-scale));
+}
+
+html[data-font-size="sm"] { --font-scale: 0.875; }
+html[data-font-size="md"] { --font-scale: 1; }
+html[data-font-size="lg"] { --font-scale: 1.15; }
+html[data-font-size="xl"] { --font-scale: 1.3; }
+
+/* ============================================================================
+   Paletas para daltonismo
+   El magenta de Wavely es justo el color que se pierde en las deficiencias
+   rojo-verde (protanopía y deuteranopía): se ve como un gris sucio, así que el
+   acento deja de distinguirse de un botón apagado. En esos dos casos el acento
+   pasa a azul, que ambas ven bien, con un ámbar de apoyo (azul+ámbar es el par
+   más seguro para rojo-verde).
+   La tritanopía es al revés — falla el eje azul-amarillo y el rojo-rosa se
+   distingue perfecto — así que ahí se conserva un acento cálido y lo que cambia
+   es el secundario, que deja de ser violeta/índigo.
+   ========================================================================== */
+
+html[data-palette="protanopia"],
+html[data-palette="deuteranopia"] {
+  --accent:       #4c9df3;
+  --accent-rgb:   76, 157, 243;
+  --accent-hover: #7ab8f7;
+  --accent-2:     #f0a92c;
+  --accent-2-rgb: 240, 169, 44;
+}
+
+html[data-palette="tritanopia"] {
+  --accent:       #f4506b;
+  --accent-rgb:   244, 80, 107;
+  --accent-hover: #f87f93;
+  --accent-2:     #12a594;
+  --accent-2-rgb: 18, 165, 148;
+}
+
+/* ============================================================================
+   Alto contraste
+   Sube el contraste de texto, bordes y superficies. Los grises tenues del tema
+   (--text-muted, --text-faint) quedan por debajo del mínimo de WCAG sobre el
+   fondo oscuro; aquí se aclaran y el fondo se hunde a negro puro.
+   ========================================================================== */
+
+html[data-contrast="high"] {
+  --bg:          #000000;
+  --bg-rgb:      0, 0, 0;
+  --bg-elev:     #101018;
+  --bg-elev-rgb: 16, 16, 24;
+  --bg-elev-2:   #1e1e2e;
+  --border:      #5a5a7a;
+  --text:        #ffffff;
+  --text-muted:  #cfcfe0;
+  --text-faint:  #a8a8c0;
+}
+
+/* ============================================================================
+   Reducir movimiento
+   Tres estados: "reduce" y "full" los fuerza el usuario desde Ajustes; sin
+   atributo manda la preferencia del sistema operativo. Apagamos animaciones y
+   transiciones en vez de solo la aurora: el movimiento que marea no distingue
+   de dónde viene.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"]) *,
+  html:not([data-motion="full"]) *::before,
+  html:not([data-motion="full"]) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-motion="reduce"] *,
+html[data-motion="reduce"] *::before,
+html[data-motion="reduce"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }
 
 html,
@@ -70,7 +181,7 @@ button {
   border: none;
   border-radius: 999px;
   padding: 12px 22px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: #fff;
   background: var(--accent);
@@ -111,7 +222,7 @@ button {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: 1rem;
   transition: color 0.15s ease, background 0.15s ease;
 }
 
@@ -151,7 +262,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text);
-  font-size: 15px;
+  font-size: 0.9375rem;
   padding: 12px 18px;
   outline: none;
   transition: border-color 0.15s ease;
@@ -181,7 +292,7 @@ button {
   justify-content: space-between;
   padding: 14px 28px;
   border-bottom: 1px solid var(--border);
-  background: rgba(11, 11, 19, 0.85);
+  background: rgba(var(--bg-rgb), 0.85);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
@@ -208,7 +319,7 @@ button {
   gap: 7px;
   padding: 8px 14px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--text-muted);
   background: transparent;
   border: 1px solid var(--border);
@@ -227,7 +338,7 @@ button {
   gap: 7px;
   padding: 8px 14px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--text-muted);
   transition: color 0.15s ease, background 0.15s ease;
 }
@@ -267,7 +378,7 @@ button {
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 
 .brand__badge {
@@ -277,9 +388,9 @@ button {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent), #a855f7);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #fff;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 /* ============================================================================
@@ -299,7 +410,7 @@ button {
 
 .playerbar__status {
   color: var(--text-faint);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .playerbar__controls {
@@ -322,7 +433,7 @@ button {
 
 .playerbar__spotify {
   color: #1db954;
-  font-size: 12px;
+  font-size: 0.75rem;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -333,14 +444,14 @@ button {
    ========================================================================== */
 
 .page-title {
-  font-size: 30px;
+  font-size: 1.875rem;
   font-weight: 800;
   margin: 0 0 4px;
 }
 
 .page-subtitle {
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 0 0 22px;
 }
 
@@ -360,7 +471,7 @@ button {
 
 .results-count {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-bottom: 12px;
 }
 
@@ -371,7 +482,7 @@ button {
 
 .track-table thead th {
   text-align: left;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -383,7 +494,7 @@ button {
 .track-table td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  font-size: 14px;
+  font-size: 0.875rem;
   vertical-align: middle;
 }
 
@@ -412,7 +523,7 @@ button {
 
 .track-artist {
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 0.78125rem;
 }
 
 .track-actions {
@@ -456,18 +567,18 @@ button {
   justify-content: center;
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  font-size: 24px;
+  font-size: 1.5rem;
   color: var(--text-muted);
 }
 
 .state__title {
   color: var(--text);
   font-weight: 700;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .state__hint {
-  font-size: 13px;
+  font-size: 0.8125rem;
   max-width: 340px;
 }
 
@@ -485,8 +596,8 @@ button {
   overflow: hidden;
   padding: 24px;
   background:
-    radial-gradient(1100px 700px at 20% 10%, rgba(99, 102, 241, 0.22), transparent 60%),
-    radial-gradient(900px 600px at 85% 30%, rgba(236, 72, 153, 0.14), transparent 55%),
+    radial-gradient(1100px 700px at 20% 10%, rgba(var(--accent-2-rgb), 0.22), transparent 60%),
+    radial-gradient(900px 600px at 85% 30%, rgba(var(--accent-rgb), 0.14), transparent 55%),
     var(--bg);
 }
 
@@ -495,7 +606,7 @@ button {
   z-index: 2;
   width: 100%;
   max-width: 380px;
-  background: rgba(20, 20, 31, 0.9);
+  background: rgba(var(--bg-elev-rgb), 0.9);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 34px 30px;
@@ -505,13 +616,13 @@ button {
 }
 
 .login-card .brand {
-  font-size: 24px;
+  font-size: 1.5rem;
   margin-bottom: 16px;
 }
 
 .login-tagline {
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.5;
   margin: 0 0 26px;
 }
@@ -522,7 +633,7 @@ button {
 
 .login-note {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.75rem;
   margin-top: 18px;
   line-height: 1.5;
 }
@@ -531,7 +642,7 @@ button {
   position: relative;
   z-index: 2;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   text-align: center;
   max-width: 380px;
   margin-top: 22px;
@@ -539,12 +650,12 @@ button {
 }
 
 .login-error {
-  background: rgba(236, 72, 153, 0.12);
-  border: 1px solid rgba(236, 72, 153, 0.4);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
   color: var(--accent-hover);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-bottom: 18px;
 }
 
@@ -631,7 +742,7 @@ button {
 
 .playerbar__chevron {
   color: var(--text-faint);
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .playerbar__cover {
@@ -651,7 +762,7 @@ button {
 }
 
 .playerbar__track {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -660,12 +771,12 @@ button {
 }
 
 .playerbar__artist {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
 .playerbar__time {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   min-width: 82px;
@@ -681,7 +792,7 @@ button {
   inset: 0;
   z-index: 50;
   background:
-    radial-gradient(900px 600px at 50% 0%, rgba(236, 72, 153, 0.12), transparent 60%),
+    radial-gradient(900px 600px at 50% 0%, rgba(var(--accent-rgb), 0.12), transparent 60%),
     var(--bg);
   display: flex;
   flex-direction: column;
@@ -707,7 +818,7 @@ button {
 
 .nowplaying__back {
   padding: 8px 16px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .nowplaying__body {
@@ -735,30 +846,30 @@ button {
 }
 
 .nowplaying__title {
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 800;
   margin: 0;
 }
 
 .nowplaying__artist {
   color: var(--accent);
-  font-size: 15px;
+  font-size: 0.9375rem;
   margin: 0;
 }
 
 .nowplaying__album {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin: 0;
 }
 
 .nowplaying__error {
   color: var(--accent-hover);
-  background: rgba(236, 72, 153, 0.12);
-  border: 1px solid rgba(236, 72, 153, 0.4);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .nowplaying__progress {
@@ -770,7 +881,7 @@ button {
 }
 
 .nowplaying__time {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   min-width: 38px;
@@ -796,7 +907,7 @@ button {
   border: none;
   background: var(--accent);
   color: #fff;
-  font-size: 22px;
+  font-size: 1.375rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -815,12 +926,12 @@ button {
 
 .nowplaying__ai {
   padding: 8px 16px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .nowplaying__queue {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.75rem;
   margin-top: 22px;
 }
 
@@ -885,7 +996,7 @@ button {
   justify-content: center;
   width: 100%;
   height: 100%;
-  font-size: 28px;
+  font-size: 1.75rem;
   color: var(--text-faint);
 }
 
@@ -914,7 +1025,7 @@ button {
 
 .rec-card__name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.875rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -922,7 +1033,7 @@ button {
 
 .rec-card__artist {
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -944,14 +1055,21 @@ button {
   padding: 34px 32px;
   margin-bottom: 34px;
   background:
-    radial-gradient(700px 300px at 12% 0%, rgba(236, 72, 153, 0.16), transparent 60%),
-    radial-gradient(600px 300px at 88% 20%, rgba(99, 102, 241, 0.16), transparent 60%),
+    radial-gradient(700px 300px at 12% 0%, rgba(var(--accent-rgb), 0.16), transparent 60%),
+    radial-gradient(600px 300px at 88% 20%, rgba(var(--accent-2-rgb), 0.16), transparent 60%),
     var(--bg-elev);
+}
+
+.home-hero__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .home-hero__eyebrow {
   display: inline-block;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent);
@@ -959,22 +1077,34 @@ button {
   margin-bottom: 10px;
 }
 
+.home-hero__settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: rgba(var(--bg-rgb), 0.5);
+  transition: background 0.15s ease;
+}
+
 .home-hero__title {
-  font-size: 34px;
+  font-size: 2.125rem;
   font-weight: 800;
   margin: 0 0 8px;
 }
 
 .home-hero__subtitle {
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.55;
   margin: 0;
   max-width: 560px;
 }
 
 .home-section-title {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1018,25 +1148,25 @@ button {
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 20px;
+  font-size: 1.25rem;
   margin-bottom: 6px;
 }
 
 .home-card__title {
   font-weight: 700;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .home-card__desc {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 
 .home-card__badge {
   align-self: flex-start;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--text-faint);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -1046,4 +1176,223 @@ button {
 .home-card.is-disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* ============================================================================
+   Ajustes (/settings)
+   ========================================================================== */
+
+.settings-section {
+  max-width: 780px;
+  margin: 0 0 28px;
+  padding: 20px 22px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.settings-section__title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section .setting:last-of-type {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+/* Variante para controles anchos (la grilla de paletas): el control baja a su
+   propia línea en vez de pelear por el ancho con la etiqueta. */
+.setting--block {
+  display: block;
+}
+
+.setting__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.setting__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.setting__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
+.setting__input {
+  max-width: 260px;
+}
+
+.settings-preview {
+  margin: 12px 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.settings-footer {
+  max-width: 780px;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+
+/* ─── Grupo de opciones excluyentes ───────────────────────────────────────── */
+
+.segmented {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.segmented__opt {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  padding: 7px 14px;
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.segmented__opt:hover {
+  color: var(--text);
+  background: var(--bg-elev-2);
+}
+
+.segmented__opt.is-on {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ─── Interruptor ─────────────────────────────────────────────────────────── */
+
+.switch {
+  flex-shrink: 0;
+  width: 46px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.switch__knob {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.switch.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.switch.is-on .switch__knob {
+  transform: translateX(20px);
+  background: var(--accent);
+}
+
+/* ─── Selector de paleta ──────────────────────────────────────────────────── */
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.palette-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.palette-card:hover {
+  background: var(--bg-elev-2);
+}
+
+.palette-card.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.palette-card__name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.palette-card__desc {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.palette-card__swatches {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.palette-card__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.palette-card__dot--1 { background: var(--accent); }
+.palette-card__dot--2 { background: var(--accent-2); }
+
+/* Las muestras enseñan el color REAL de cada paleta aunque no esté activa:
+   redefinen las variables solo dentro del punto de color. Los valores repiten
+   los de los bloques html[data-palette=...] de arriba — si cambian allá,
+   cambian aquí. */
+.palette-card__swatches[data-preview="protanopia"],
+.palette-card__swatches[data-preview="deuteranopia"] {
+  --accent:   #4c9df3;
+  --accent-2: #f0a92c;
+}
+
+.palette-card__swatches[data-preview="tritanopia"] {
+  --accent:   #f4506b;
+  --accent-2: #12a594;
+}
+
+.palette-card__swatches[data-preview="default"] {
+  --accent:   #ec4899;
+  --accent-2: #a855f7;
 }
