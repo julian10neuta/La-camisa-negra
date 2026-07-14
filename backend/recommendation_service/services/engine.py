@@ -20,6 +20,7 @@
 # Se cachean en Redis las llamadas de Deezer (id de artista, similares y top tracks),
 # que casi no cambian, para no repetir llamadas ni acercarnos a su límite (50/5s).
 import json
+from datetime import timedelta
 from sqlalchemy.orm import Session
 
 from shared.spotify_service import SpotifyService
@@ -28,21 +29,85 @@ from ..repositories.interaction_repo import InteractionReadRepository
 from ..repositories.recommendation_playlist_repo import RecommendationPlaylistRepository
 from .profile import build_profile
 
-PLAYLIST_NAME = "Wavely — Recomendado para ti"
-PLAYLIST_DESC = "Recomendaciones generadas por Wavely según tu escucha."
-PERIOD = "weekly"
+# ─── Períodos ─────────────────────────────────────────────────────────────────
+# El usuario elige en Ajustes si quiere sus recomendaciones semanales o mensuales.
+# Entre un período y otro cambian dos cosas:
+#   1. Cada cuánto se regenera la lista (`stale_after`).
+#   2. Que cada período tiene su PROPIA playlist en Spotify — el modelo tiene la
+#      restricción única (user_id, period_type), así que las dos pueden coexistir
+#      y el usuario puede alternar sin perder ninguna.
+#
+# OJO CON LO QUE **NO** CAMBIA: el perfil se construye con TODO el historial de
+# interacciones, sin ventana temporal (ver profile.build_profile). O sea que
+# "mensual" NO significa "calculado con lo que escuchaste este mes": significa que
+# se refresca cada 30 días. Si algún día se quiere una ventana temporal de verdad,
+# hay que tocar el repositorio de interacciones y el perfil, no esto.
+PERIODS = {
+    "weekly": {
+        "stale_after": timedelta(days=7),
+        "playlist_name": "Wavely — Recomendado para ti (semanal)",
+        "playlist_desc": "Recomendaciones de Wavely según tu escucha. Se renuevan cada semana.",
+    },
+    "monthly": {
+        "stale_after": timedelta(days=30),
+        "playlist_name": "Wavely — Recomendado para ti (mensual)",
+        "playlist_desc": "Recomendaciones de Wavely según tu escucha. Se renuevan cada mes.",
+    },
+}
+DEFAULT_PERIOD = "weekly"
+
+
+def period_config(period: str) -> dict:
+    """Config de un período, cayendo al default si llega uno desconocido. El
+    router ya valida el valor; esto es solo un cinturón de seguridad para que el
+    motor nunca reviente con un KeyError."""
+    return PERIODS.get(period, PERIODS[DEFAULT_PERIOD])
+
 
 # Botones de diseño (ver doc del motor).
 SEED_ARTISTS = 8          # artistas favoritos usados como semilla
 RELATED_PER_SEED = 6      # cuántos artistas similares miramos por semilla
 TRACKS_PER_ARTIST = 2     # top tracks por artista similar
 PER_SEED_QUOTA = 3        # cuántas candidatas aporta cada semilla al pool
-N_RECOMMENDATIONS = 15
+N_RECOMMENDATIONS = 15    # default; el usuario puede pedir otro en Ajustes
+MIN_RECOMMENDATIONS = 1
+MAX_RECOMMENDATIONS = 50  # tope duro: cada recomendación cuesta llamadas a Deezer+Spotify
 
 ARTIST_ID_TTL = 60 * 60 * 24 * 30   # 30 días
 RELATED_TTL = 60 * 60 * 24 * 7      # 7 días
 TOP_TTL = 60 * 60 * 24 * 7          # 7 días
 MATCH_TTL = 60 * 60 * 24 * 30       # 30 días — emparejado Deezer→Spotify (estable)
+
+
+def build_response(
+    tracks: list,
+    playlist_id: str | None,
+    period: str,
+    last_updated,
+    generated: bool,
+) -> dict:
+    """
+    Forma única de la respuesta de /list y /refresh, para que las dos rutas no se
+    desincronicen.
+
+    `period` y `next_refresh` van aquí y no se calculan en el frontend a
+    propósito: cuándo caduca una lista es una regla del motor, y si el cliente la
+    replicara habría que acordarse de cambiarla en dos sitios.
+    """
+    cfg = period_config(period)
+    return {
+        "tracks": tracks,
+        "playlist_id": playlist_id,
+        "playlist_url": (
+            f"https://open.spotify.com/playlist/{playlist_id}" if playlist_id else None
+        ),
+        "generated": generated,
+        "period": period,
+        "last_updated": last_updated.isoformat() if last_updated else None,
+        "next_refresh": (
+            (last_updated + cfg["stale_after"]).isoformat() if last_updated else None
+        ),
+    }
 
 
 def serialize_track(track: dict) -> dict:
@@ -128,13 +193,26 @@ class RecommendationEngine:
 
     # ─── Pipeline principal ────────────────────────────────────────────────────
 
-    async def generate(self, user_id: int, token: str) -> dict:
+    async def generate(
+        self,
+        user_id: int,
+        token: str,
+        period: str = DEFAULT_PERIOD,
+        limit: int = N_RECOMMENDATIONS,
+    ) -> dict:
         rows = InteractionReadRepository.get_interactions_with_songs(self.db, user_id)
         profile = build_profile(rows)
 
         seeds = await self._seed_artists(token, profile)
         if not seeds:
-            return self._empty()
+            return self._empty(period)
+
+        # La cuota por semilla se adapta al total pedido. Con los valores fijos
+        # (8 semillas × 3) el pool tope era 24, así que pedir 25 habría devuelto
+        # 24 en silencio; y si el usuario tiene pocas semillas, el tope caía aún
+        # más. Se reparte el objetivo entre las semillas que realmente haya.
+        # El techo real por semilla es RELATED_PER_SEED × TRACKS_PER_ARTIST.
+        quota = max(PER_SEED_QUOTA, -(-limit // len(seeds)))  # ceil(limit/semillas)
 
         favorite_names = {n.lower() for n, _ in seeds}
         chosen_ids: set = set()          # evita duplicados entre semillas
@@ -145,7 +223,7 @@ class RecommendationEngine:
             picks: list = []
             if dz:
                 for rel in (await self._dz_related(dz["id"]))[:RELATED_PER_SEED]:
-                    if len(picks) >= PER_SEED_QUOTA:
+                    if len(picks) >= quota:
                         break
                     if rel["name"].lower() in favorite_names:
                         continue  # buscamos descubrimiento, no lo que ya conoce
@@ -158,7 +236,7 @@ class RecommendationEngine:
                             continue
                         chosen_ids.add(tid)
                         picks.append(sp)
-                        if len(picks) >= PER_SEED_QUOTA:
+                        if len(picks) >= quota:
                             break
             per_seed[name] = picks
 
@@ -167,36 +245,40 @@ class RecommendationEngine:
         tracks: list = []
         order = [n for n, _ in seeds]
         idx = 0
-        while len(tracks) < N_RECOMMENDATIONS:
+        while len(tracks) < limit:
             progressed = False
             for name in order:
                 lst = per_seed.get(name, [])
                 if idx < len(lst):
                     tracks.append(serialize_track(lst[idx]))
                     progressed = True
-                    if len(tracks) >= N_RECOMMENDATIONS:
+                    if len(tracks) >= limit:
                         break
             idx += 1
             if not progressed:
                 break
 
         playlist_id = None
+        last_updated = None
         if tracks:
-            playlist_id = await self._sync_playlist(
-                user_id, token, [t["spotify_track_id"] for t in tracks]
+            pl = await self._sync_playlist(
+                user_id, token, [t["spotify_track_id"] for t in tracks], period
             )
+            playlist_id = pl.spotify_playlist_id
+            last_updated = pl.last_updated
 
-        return {
-            "tracks": tracks,
-            "playlist_id": playlist_id,
-            "playlist_url": (
-                f"https://open.spotify.com/playlist/{playlist_id}" if playlist_id else None
-            ),
-            "generated": True,
-        }
+        return build_response(
+            tracks=tracks,
+            playlist_id=playlist_id,
+            period=period,
+            last_updated=last_updated,
+            generated=True,
+        )
 
-    def _empty(self) -> dict:
-        return {"tracks": [], "playlist_id": None, "playlist_url": None, "generated": False}
+    def _empty(self, period: str = DEFAULT_PERIOD) -> dict:
+        return build_response(
+            tracks=[], playlist_id=None, period=period, last_updated=None, generated=False
+        )
 
     async def _match_spotify(self, title: str, artist: str, token: str):
         """
@@ -230,9 +312,24 @@ class RecommendationEngine:
 
     # ─── Persistencia + playlist real de Spotify ───────────────────────────────
 
-    async def _sync_playlist(self, user_id: int, token: str, track_ids: list[str]) -> str:
+    async def _sync_playlist(
+        self,
+        user_id: int,
+        token: str,
+        track_ids: list[str],
+        period: str,
+    ):
+        """
+        Vuelca las recomendaciones en la playlist real de Spotify del usuario para
+        ESE período y devuelve la fila de RecommendationPlaylist (quien llama
+        necesita su `last_updated` para saber cuándo toca renovar).
+
+        Cada período tiene su propia playlist: la semanal y la mensual conviven y
+        no se pisan.
+        """
+        cfg = period_config(period)
         existing = RecommendationPlaylistRepository.get_by_user_and_period(
-            self.db, user_id, PERIOD
+            self.db, user_id, period
         )
         if existing:
             pl_id = existing.spotify_playlist_id
@@ -242,17 +339,18 @@ class RecommendationEngine:
                 if current_ids:
                     await self.spotify.remove_tracks_from_playlist(pl_id, current_ids, token)
                 await self.spotify.add_tracks_to_playlist(pl_id, track_ids, token)
-                RecommendationPlaylistRepository.update(self.db, existing)
-                return pl_id
+                return RecommendationPlaylistRepository.update(self.db, existing)
             except Exception:
                 pass  # la playlist pudo ser borrada en Spotify → crear una nueva
 
-        created = await self.spotify.create_playlist(PLAYLIST_NAME, PLAYLIST_DESC, token)
+        created = await self.spotify.create_playlist(
+            cfg["playlist_name"], cfg["playlist_desc"], token
+        )
         await self.spotify.add_tracks_to_playlist(created["id"], track_ids, token)
         if existing:
-            RecommendationPlaylistRepository.update(
+            return RecommendationPlaylistRepository.update(
                 self.db, existing, spotify_playlist_id=created["id"]
             )
-        else:
-            RecommendationPlaylistRepository.create(self.db, user_id, created["id"], PERIOD)
-        return created["id"]
+        return RecommendationPlaylistRepository.create(
+            self.db, user_id, created["id"], period
+        )

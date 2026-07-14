@@ -76,6 +76,17 @@ const MOTION = [
   { value: "off", label: "Permitir" },
 ];
 
+const PERIODS = [
+  { value: "weekly", label: "Cada semana" },
+  { value: "monthly", label: "Cada mes" },
+];
+
+const REC_COUNTS = [
+  { value: 10, label: "10" },
+  { value: 15, label: "15" },
+  { value: 25, label: "25" },
+];
+
 // Cada paleta se describe por lo que le pasa a quien la necesita, no por el
 // nombre clínico a secas: "deuteranopía" no le dice nada a casi nadie.
 const PALETTES = [
@@ -206,6 +217,31 @@ export default function Settings() {
           value={settings.reduceMotion}
           options={MOTION}
           onChange={(v) => set("reduceMotion", v)}
+        />
+      </section>
+
+      {/* ─── Recomendaciones ────────────────────────────────────────────── */}
+      <section className="settings-section">
+        <h2 className="settings-section__title">Recomendaciones</h2>
+
+        <Segmented
+          label="Cada cuánto se renuevan"
+          hint={
+            "Cada opción tiene su propia lista, así que puedes cambiar de una a " +
+            "otra sin perder ninguna. Se calculan con todo tu historial: lo que " +
+            "cambia es cada cuánto se refrescan."
+          }
+          value={settings.period}
+          options={PERIODS}
+          onChange={(v) => set("period", v)}
+        />
+
+        <Segmented
+          label="Cuántas canciones"
+          hint="Subirlo hace que la próxima lista tarde un poco más en generarse."
+          value={settings.recCount}
+          options={REC_COUNTS}
+          onChange={(v) => set("recCount", v)}
         />
       </section>
 

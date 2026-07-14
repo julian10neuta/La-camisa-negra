@@ -133,20 +133,33 @@ export async function getSpotifyToken(spotifyId) {
 
 // ─── Recomendaciones ──────────────────────────────────────────────────────────
 
-// Devuelve { tracks, playlist_id, playlist_url, generated }.
-// Si hay una playlist reciente la devuelve tal cual; si no, la genera (puede
-// tardar unos segundos porque consulta a Spotify).
-export async function getRecommendations() {
-  const res = await fetch(`${GATEWAY}/recommendations/list`, {
+// `period` ("weekly"|"monthly") y `limit` salen de los Ajustes del usuario. Si no
+// se pasan, el backend aplica sus defaults — por eso quien no los necesite (el
+// reproductor, que solo quiere canciones para la cola) puede seguir llamando sin
+// argumentos.
+function recQuery({ period, limit } = {}) {
+  const qs = new URLSearchParams();
+  if (period) qs.set("period", period);
+  if (limit) qs.set("limit", limit);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
+// Devuelve { tracks, playlist_id, playlist_url, generated, period, last_updated,
+// next_refresh }. Si hay una playlist reciente para ese período la devuelve tal
+// cual; si no, la genera (puede tardar unos segundos porque consulta a Spotify).
+// `next_refresh` lo calcula el backend, que es quien manda sobre la caducidad.
+export async function getRecommendations(opts) {
+  const res = await fetch(`${GATEWAY}/recommendations/list${recQuery(opts)}`, {
     headers: authHeaders(),
   });
   await ensureOk(res);
   return res.json();
 }
 
-// Fuerza la regeneración de las recomendaciones.
-export async function refreshRecommendations() {
-  const res = await fetch(`${GATEWAY}/recommendations/refresh`, {
+// Fuerza la regeneración de las recomendaciones de ese período.
+export async function refreshRecommendations(opts) {
+  const res = await fetch(`${GATEWAY}/recommendations/refresh${recQuery(opts)}`, {
     method: "POST",
     headers: authHeaders(),
   });
