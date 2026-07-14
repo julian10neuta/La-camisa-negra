@@ -116,6 +116,29 @@ export async function listDislikes() {
   return res.json(); // [{ spotify_track_id }]
 }
 
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+// La pantalla del Dashboard entera en UNA llamada: los tres top-5 de la ventana,
+// el resumen de escucha y las recomendaciones. Lo compone el dashboard_service
+// llamando por dentro a music_service y recommendation_service, así que el
+// navegador hace un viaje en vez de tres.
+//
+// Devuelve { window, top:{songs,artists,albums}, stats, recommendations, failed }.
+// `failed` lista las secciones cuyo servicio falló: vienen a null y la pantalla
+// debe decirlo en vez de pintar ceros, que mentirían.
+//
+//  - days   : ventana de las ESTADÍSTICAS (el diseño pide 24h y 7d -> 1 y 7)
+//  - period : el de las RECOMENDACIONES (semanal/mensual), de los Ajustes.
+//    Son cosas distintas: mirar tus stats de hoy no cambia tus recomendaciones.
+export async function getDashboard({ days = 7, top = 5, period, limit } = {}) {
+  const qs = new URLSearchParams({ days, top });
+  if (period) qs.set("period", period);
+  if (limit) qs.set("limit", limit);
+  const res = await fetch(`${GATEWAY}/dashboard?${qs}`, { headers: authHeaders() });
+  await ensureOk(res);
+  return res.json();
+}
+
 // ─── Historial y estadísticas (Home) ──────────────────────────────────────────
 
 // "Sigue escuchando": últimas canciones reproducidas, sin repetidos. Vienen con

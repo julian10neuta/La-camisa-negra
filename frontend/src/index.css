@@ -1699,3 +1699,160 @@ html[data-contrast="high"] .aurora {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ============================================================================
+   Aviso de recomendaciones caducadas (Dashboard)
+   Leer las recomendaciones ya no las regenera —eso son ~30-50 llamadas a Spotify
+   y ~17s—, así que cuando caducan se enseñan las últimas y se ofrece el botón.
+   ========================================================================== */
+
+.dash-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+  padding: 14px 20px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+/* ============================================================================
+   Dashboard — "Tu actividad musical"
+   Los tres rankings (canciones, artistas, álbumes) comparten la misma fila:
+   puesto, carátula, texto y nº de escuchas. Cuando tres cosas son la misma cosa
+   conviene que se vean igual — el usuario aprende el patrón una vez.
+   ========================================================================== */
+
+.dash-stats {
+  margin-bottom: 32px;
+}
+
+.dash-section {
+  margin-bottom: 32px;
+}
+
+.dash-section__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.dash-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.dash-section__head .dash-section__title {
+  margin-bottom: 6px;
+}
+
+.dash-empty {
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+/* ─── Fila de ranking ─────────────────────────────────────────────────────── */
+
+.top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.top-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.top-row.is-playable {
+  cursor: pointer;
+}
+
+.top-row.is-playable:hover {
+  background: var(--bg-elev);
+  border-color: var(--border);
+}
+
+.top-row__rank {
+  flex-shrink: 0;
+  width: 18px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.top-cover {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg-elev-2);
+}
+
+.top-cover--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 1.125rem;
+}
+
+/* min-width:0 no es un capricho: sin él, un título largo estira la fila en vez
+   de recortarse, y el nº de escuchas se sale de la pantalla. */
+.top-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.top-row__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-row__sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-row__plays {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
