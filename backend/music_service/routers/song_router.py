@@ -1,5 +1,5 @@
 # music_service/routers/songs.py
-from backend.music_service.serializers import song_serializer
+from ..serializers import song_serializer
 from fastapi import APIRouter, Header, Query, HTTPException
 from sqlalchemy.orm import Session
 from fastapi import Depends
