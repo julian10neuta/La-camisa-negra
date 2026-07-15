@@ -4,6 +4,21 @@ from sqlalchemy import select, or_
 from shared.models import Song
 
 
+def _album_name(track_data: dict) -> str | None:
+    """El nombre del álbum, que Spotify anida dentro del track."""
+    return (track_data.get("album") or {}).get("name")
+
+
+def _cover_url(track_data: dict) -> str | None:
+    """
+    La carátula más grande que ofrece Spotify (viene ordenada de mayor a menor).
+    Se elige la grande porque el navegador puede reducirla, pero no ampliarla sin
+    que se vea borrosa.
+    """
+    images = (track_data.get("album") or {}).get("images") or []
+    return images[0]["url"] if images else None
+
+
 def _normalize_genres(value) -> str | None:
     """
     Acepta el género tanto como lista (data cruda de Spotify) como string ya
@@ -90,7 +105,13 @@ class SongRepository:
     def create_from_spotify_data(db: Session, track_data: dict) -> Song:
         """
         Crea una canción basada en la data cruda de Spotify.
-        Ahora optimizado para el enfoque de 'memoria de preferencias'.
+
+        Guarda TODO lo que el objeto de Spotify ya trae y nos sirve. `track_data`
+        viene de /search o de /tracks/{id}, y en ambos casos incluye el álbum y
+        sus carátulas: no guardarlos no ahorra ninguna llamada, solo obliga a
+        pedirlos otra vez más tarde — y el lote /tracks?ids= está prohibido para
+        esta app (403), así que "más tarde" son N llamadas. Ver la migración
+        b1c4e7d9f2a3.
         """
         song = Song(
             spotify_track_id=track_data["id"],
@@ -101,10 +122,31 @@ class SongRepository:
             genres=_normalize_genres(track_data.get("genres")),
             # Guardamos duración para lógica de 'skip' o 'reproducción completa'
             duration_ms=track_data.get("duration_ms"),
+            album=_album_name(track_data),
+            cover_url=_cover_url(track_data),
         )
         db.add(song)
         db.commit()
         db.refresh(song)
+        return song
+
+    @staticmethod
+    def backfill_album_and_cover(db: Session, song: Song, track_data: dict) -> Song:
+        """
+        Rellena álbum y carátula en una canción que se guardó ANTES de que esas
+        columnas existieran. Solo escribe lo que falta: nunca pisa un dato bueno.
+        Lo usa scripts/backfill_song_album.py.
+        """
+        changed = False
+        if not song.album:
+            song.album = _album_name(track_data)
+            changed = bool(song.album)
+        if not song.cover_url:
+            song.cover_url = _cover_url(track_data)
+            changed = changed or bool(song.cover_url)
+        if changed:
+            db.commit()
+            db.refresh(song)
         return song
 
     @staticmethod

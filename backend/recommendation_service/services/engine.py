@@ -20,7 +20,7 @@
 # Se cachean en Redis las llamadas de Deezer (id de artista, similares y top tracks),
 # que casi no cambian, para no repetir llamadas ni acercarnos a su límite (50/5s).
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from shared.spotify_service import SpotifyService
@@ -85,6 +85,7 @@ def build_response(
     period: str,
     last_updated,
     generated: bool,
+    stale: bool = False,
 ) -> dict:
     """
     Forma única de la respuesta de /list y /refresh, para que las dos rutas no se
@@ -93,6 +94,10 @@ def build_response(
     `period` y `next_refresh` van aquí y no se calculan en el frontend a
     propósito: cuándo caduca una lista es una regla del motor, y si el cliente la
     replicara habría que acordarse de cambiarla en dos sitios.
+
+    `stale` = "esta lista sigue siendo la última que hay, pero ya tocaba
+    renovarla". El frontend lo usa para ofrecer el botón de actualizar en vez de
+    que la lectura dispare sola una regeneración de 30-50 llamadas a Spotify.
     """
     cfg = period_config(period)
     return {
@@ -102,12 +107,62 @@ def build_response(
             f"https://open.spotify.com/playlist/{playlist_id}" if playlist_id else None
         ),
         "generated": generated,
+        "stale": stale,
         "period": period,
         "last_updated": last_updated.isoformat() if last_updated else None,
         "next_refresh": (
             (last_updated + cfg["stale_after"]).isoformat() if last_updated else None
         ),
     }
+
+
+# ─── Caché de la lista ya generada ────────────────────────────────────────────
+# El modelo RecommendationPlaylist guarda el ID de la playlist de Spotify, NO las
+# canciones. Sin esta caché, cada lectura de recomendaciones cuesta una llamada a
+# Spotify (get_playlist_tracks) aunque la lista lleve días sin cambiar — y la
+# leen el Home (pantalla de entrada), el Dashboard y el mix del buscador. Con
+# StrictMode duplicando en desarrollo, el doble. Era una de las goteras que
+# llevaron al segundo baneo.
+#
+# TTL = el doble de la caducidad del período, a propósito: así la lista sobrevive
+# a su propia caducidad y podemos seguir enseñando la última conocida (marcada
+# como `stale`) sin volver a preguntar. La clave lleva el user_id porque, a
+# diferencia del emparejado Deezer→Spotify, esta lista sí es de cada usuario.
+
+def _cache_key(user_id: int, period: str) -> str:
+    return f"recs:{user_id}:{period}"
+
+
+def read_cached(redis, user_id: int, period: str) -> dict | None:
+    """La lista guardada, o None si no hay. Nunca lanza: si Redis está caído,
+    seguimos por el camino lento en vez de romper la pantalla."""
+    try:
+        raw = redis.get(_cache_key(user_id, period))
+    except Exception:
+        return None
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        data["last_updated"] = datetime.fromisoformat(data["last_updated"])
+        return data
+    except Exception:
+        return None  # formato viejo o corrupto: se ignora y se regenera
+
+
+def write_cached(redis, user_id: int, period: str, tracks: list, playlist_id, last_updated) -> None:
+    if not playlist_id or not last_updated:
+        return
+    payload = {
+        "tracks": tracks,
+        "playlist_id": playlist_id,
+        "last_updated": last_updated.isoformat(),
+    }
+    ttl = int(period_config(period)["stale_after"].total_seconds() * 2)
+    try:
+        redis.setex(_cache_key(user_id, period), ttl, json.dumps(payload))
+    except Exception:
+        pass  # sin caché la app funciona, solo gasta más llamadas
 
 
 def serialize_track(track: dict) -> dict:
@@ -266,6 +321,9 @@ class RecommendationEngine:
             )
             playlist_id = pl.spotify_playlist_id
             last_updated = pl.last_updated
+            # Guardamos las canciones, no solo el id de la playlist: es lo que
+            # permite que las próximas lecturas no toquen Spotify.
+            write_cached(self.redis, user_id, period, tracks, playlist_id, last_updated)
 
         return build_response(
             tracks=tracks,

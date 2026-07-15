@@ -14,7 +14,9 @@ from ..services.engine import (
     RecommendationEngine,
     build_response,
     period_config,
+    read_cached,
     serialize_track,
+    write_cached,
     DEFAULT_PERIOD,
     MAX_RECOMMENDATIONS,
     MIN_RECOMMENDATIONS,
@@ -50,39 +52,65 @@ async def get_recommendations(
     redis=Depends(get_redis),
 ):
     """
-    Devuelve las recomendaciones del usuario para el período pedido. Si ya existe
-    una playlist reciente (según la caducidad de ESE período) devuelve su
-    contenido sin regenerar; si no, la genera.
+    Devuelve las recomendaciones que el usuario YA tiene. **Nunca regenera.**
+
+    Antes, si la lista había caducado, esta ruta lanzaba una regeneración: una
+    ráfaga de 30-50 llamadas a Spotify. Y como la lee el Home —la pantalla de
+    entrada de la app— bastaba con abrir la app para dispararla. Fue una de las
+    causas del segundo baneo por rate limit. Regenerar es caro y lento (~17s), así
+    que ahora es un acto explícito: POST /refresh, que el frontend ofrece con un
+    botón cuando la respuesta viene marcada como `stale`.
+
+    Coste en llamadas a Spotify:
+      - lista en caché  -> CERO (el caso normal)
+      - caché fría      -> UNA (se rellena la caché y las siguientes son cero)
+      - sin playlist    -> CERO
     """
     user_id = _get_user_id(db, x_spotify_id)
-    token = await TokenService(redis).get_token(x_spotify_id)
-
     pl = RecommendationPlaylistRepository.get_by_user_and_period(db, user_id, period)
-    stale_after = period_config(period)["stale_after"]
 
-    if pl and pl.last_updated and (datetime.utcnow() - pl.last_updated) < stale_after:
+    if not pl or not pl.last_updated:
+        # Nunca se ha generado. Que el usuario lo pida cuando quiera.
+        return build_response(
+            tracks=[], playlist_id=None, period=period,
+            last_updated=None, generated=False, stale=True,
+        )
+
+    stale_after = period_config(period)["stale_after"]
+    caducada = (datetime.utcnow() - pl.last_updated) >= stale_after
+
+    # 1) La caché: las canciones tal cual se generaron. Cero llamadas.
+    cached = read_cached(redis, user_id, period)
+    tracks = cached["tracks"] if cached else None
+
+    # 2) Caché fría (Redis reiniciado, o lista generada antes de que existiera
+    #    esta caché): se paga UNA llamada, y se rellena para no repetirla.
+    if tracks is None:
         try:
+            token = await TokenService(redis).get_token(x_spotify_id)
             tracks_raw = await SpotifyService().get_playlist_tracks(
                 pl.spotify_playlist_id, token
             )
             tracks = [serialize_track(t) for t in tracks_raw if t.get("id")]
-            # Si la lista guardada tiene AL MENOS lo que se pide, se sirve tal
-            # cual (recortada). Si el usuario subió el número en Ajustes y la
-            # guardada se queda corta, caemos a regenerar: pedir más y recibir
-            # menos en silencio sería peor que esperar unos segundos.
-            if tracks and len(tracks) >= limit:
-                return build_response(
-                    tracks=tracks[:limit],
-                    playlist_id=pl.spotify_playlist_id,
-                    period=period,
-                    last_updated=pl.last_updated,
-                    generated=False,
-                )
+            write_cached(redis, user_id, period, tracks, pl.spotify_playlist_id, pl.last_updated)
         except Exception:
-            pass  # si la playlist ya no existe en Spotify, caemos a regenerar
+            # Spotify caído o limitándonos: mejor una lista vacía marcada como
+            # "hay que actualizar" que un error en la cara del usuario.
+            tracks = []
 
-    engine = RecommendationEngine(db, redis)
-    return await engine.generate(user_id, token, period=period, limit=limit)
+    # Si el usuario subió el número en Ajustes, la lista guardada se queda corta:
+    # se sirve lo que hay y se marca para que ofrezca actualizar. Antes esto
+    # regeneraba en el acto, sin avisar.
+    corta = len(tracks) < limit
+
+    return build_response(
+        tracks=tracks[:limit],
+        playlist_id=pl.spotify_playlist_id,
+        period=period,
+        last_updated=pl.last_updated,
+        generated=False,
+        stale=caducada or corta or not tracks,
+    )
 
 
 @router.post("/refresh")
