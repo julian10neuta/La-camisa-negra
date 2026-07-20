@@ -143,6 +143,25 @@ services:
     networks:
       - app_network
 
+  rag_service:
+    build:
+      context: ./backend
+      dockerfile: rag_service/Dockerfile
+    container_name: la_camisa_negra_rag
+    restart: always
+    ports:
+      - "8006:8006"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/rag_service:/app/rag_service
+      - ./backend/shared:/app/shared
+    depends_on:
+      - postgres_db
+      - redis_cache
+    networks:
+      - app_network
+
 volumes:
   postgres_data:
   redis_data:
