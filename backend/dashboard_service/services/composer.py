@@ -1,3 +1,20 @@
+# dashboard_service/services/composer.py
+# ----------------------------------------------------------------------------
+# El corazón del dashboard_service, y lo más importante que hay que entender de
+# él: AQUÍ NO HAY LÓGICA DE NEGOCIO NI ACCESO A DATOS.
+#
+# Este servicio no tiene base de datos, ni repositorios, ni sabe qué es un
+# "play". Lo único que hace es llamar a los servicios que SÍ lo saben y juntar
+# sus respuestas en una sola. Es el patrón **API Composition** (Richardson,
+# "Microservices Patterns"): cuando una pantalla necesita datos de varios
+# servicios, alguien tiene que juntarlos; hacerlo aquí evita que el navegador
+# haga tres viajes y que el frontend tenga que saber qué servicio guarda qué.
+#
+# Si algún día alguien siente la tentación de meter aquí una consulta SQL: eso
+# sería duplicar la lógica de music_service y tener dos servicios escribiendo
+# sobre las mismas tablas. Las consultas van en su dueño; aquí solo se compone.
+# ----------------------------------------------------------------------------
+
 import asyncio
 
 import httpx
