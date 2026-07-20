@@ -1,0 +1,15 @@
+# Dependencias SOLO para correr los tests del backend.
+# -----------------------------------------------------------------------------
+# IMPORTANTE: los Dockerfiles instalan `requirements.txt`, NO este archivo. Por
+# eso añadir tests NO cambia la forma de arrancar la app ni las imágenes de
+# producción. Este archivo se instala aparte, solo en local, para correr pytest:
+#
+#   python -m venv .venv && . .venv/bin/activate
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   pytest
+# -----------------------------------------------------------------------------
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+fakeredis==2.36.2
+respx==0.23.1
