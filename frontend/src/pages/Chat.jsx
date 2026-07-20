@@ -223,6 +223,17 @@ function Respuesta({ data }) {
     );
   }
 
+  // Sin fuente: la respuesta entera es cosa de la IA. Se marca de arriba abajo
+  // para que no se confunda con una respuesta comprobable.
+  if (data.mode === "unsourced") {
+    return (
+      <div className="chat-msg chat-msg--bot chat-msg--warn">
+        <p className="chat-aviso">⚠ {data.message}</p>
+        <p className="chat-answer">{data.own_reading}</p>
+      </div>
+    );
+  }
+
   if (data.mode === "retrieval_only") {
     return (
       <div className="chat-msg chat-msg--bot chat-msg--warn">
@@ -237,6 +248,15 @@ function Respuesta({ data }) {
     <div className="chat-msg chat-msg--bot">
       <p className="chat-answer">{data.answer}</p>
       <Fuente source={data.source} kind={data.context_kind} />
+
+      {/* Lo que el modelo aporta por su cuenta va aparte y etiquetado. Mezclarlo
+          con lo anterior haría imposible saber qué se puede comprobar. */}
+      {data.own_reading && (
+        <div className="chat-reading">
+          <span className="chat-reading__label">Mi lectura — esto no viene del artículo</span>
+          <p className="chat-answer">{data.own_reading}</p>
+        </div>
+      )}
     </div>
   );
 }

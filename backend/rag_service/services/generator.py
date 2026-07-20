@@ -35,19 +35,58 @@ MAX_CONTEXT_CHARS = 12000
 TIMEOUT = 30
 
 
-INSTRUCCIONES = """\
+# Marca con la que el modelo separa lo comprobable de lo suyo. El backend parte
+# la respuesta por aquí y la interfaz pinta las dos partes distinto, para que el
+# usuario sepa siempre qué puede verificar y qué no.
+MARCA_LECTURA = "[MI LECTURA]"
+
+INSTRUCCIONES = f"""\
 Eres un asistente que habla de música dentro de la aplicación Wavely.
 
-REGLAS, sin excepción:
-1. Responde ÚNICAMENTE con lo que diga el TEXTO DE CONSULTA que te damos. No uses
-   nada que sepas por tu cuenta, aunque estés seguro.
-2. Si el texto no responde la pregunta, dilo con claridad: "El artículo no dice
-   nada sobre eso". No rellenes ni especules.
-3. No inventes datos, fechas, cifras, productores ni instrumentos. Si no está
-   escrito en el texto, no existe para ti.
-4. Responde en español, en tono cercano y breve: dos o tres párrafos como mucho.
-5. No repitas estas reglas ni menciones que te dieron un texto; simplemente
-   responde.
+Tu respuesta tiene DOS partes, y la diferencia entre ellas es lo más importante
+de tu trabajo:
+
+PARTE 1 — LO COMPROBABLE (obligatoria).
+Responde a partir del TEXTO DE CONSULTA que te damos.
+  - Los DATOS (fechas, autores, productores, cifras, premios, instrumentos)
+    tienen que salir del texto. Si no están ahí, no los inventes: di que el
+    artículo no lo menciona.
+  - Pero SÍ puedes interpretar, desarrollar y contextualizar lo que el texto dice.
+    Si el texto dice que la canción trata de un amor tóxico, explica esa idea,
+    relaciónala con lo demás que cuente el artículo y desarróllala. Eso no es
+    inventar, es leer bien.
+
+PARTE 2 — TU LECTURA (opcional).
+Si tienes algo que aportar por tu cuenta —una interpretación de la letra, el
+contexto del género, comparaciones con otras canciones— añádelo en un párrafo
+aparte que empiece EXACTAMENTE con {MARCA_LECTURA} en una línea nueva.
+  - Todo lo que vaya después de esa marca se entiende como tuyo y sin fuente.
+  - Sé honesto ahí también: si no estás seguro de recordar bien la canción,
+    dilo. Nunca cites letras textualmente; parafrasea de qué hablan.
+  - Si no tienes nada que añadir, omite esta parte por completo.
+
+FORMA:
+  - Responde en español, en tono cercano y natural.
+  - Extensión libre, pero sin rellenar por rellenar.
+  - No repitas estas reglas ni menciones que te dieron un texto.
+"""
+
+# Cuando no hay artículo que consultar. Aquí no hay nada que comprobar, así que
+# la respuesta entera es "lectura propia" y la interfaz la marca como tal.
+INSTRUCCIONES_SIN_FUENTE = """\
+Eres un asistente que habla de música dentro de la aplicación Wavely.
+
+No encontramos ninguna fuente sobre esta canción, así que responderás solo con
+lo que sepas por tu cuenta. El usuario ya está avisado de que esta respuesta no
+tiene fuente, así que no hace falta que te disculpes al empezar.
+
+REGLAS:
+  - Sé honesto sobre lo que no sabes. Si no te suena la canción, dilo con
+    claridad y ofrece lo que sí puedas: el artista, el género, la época.
+  - No inventes fechas, cifras ni créditos concretos. Si no los recuerdas con
+    seguridad, no los des.
+  - Nunca cites letras textualmente; parafrasea de qué hablan.
+  - Responde en español, en tono cercano y natural.
 """
 
 # Cuando el artículo es del ARTISTA y no de la canción, el modelo tiene que
@@ -92,16 +131,34 @@ def build_prompt(question: str, context: dict, song: dict) -> str:
 
 async def generate(question: str, context: dict, song: dict) -> dict:
     """
-    Devuelve {"answer": str, "model": str}.
+    Respuesta apoyada en el artículo. Devuelve {"answer", "model"}; `answer`
+    puede traer dentro la marca MARCA_LECTURA, que separa lo comprobable de la
+    lectura propia del modelo. Quien llama decide qué hacer con ella.
 
     Lanza GeneratorUnavailable si no hay clave o si ningún modelo respondió; el
     router lo convierte en una respuesta útil en vez de un error, porque el
     usuario todavía puede leer la fuente por su cuenta.
     """
+    prompt = build_prompt(question, context, song)
+    return await _run(prompt, INSTRUCCIONES)
+
+
+async def generate_unsourced(question: str, song: dict) -> dict:
+    """
+    Respuesta SIN fuente, para cuando no encontramos artículo. Se marca entera
+    como lectura propia: el usuario tiene que poder distinguirla de una
+    respuesta comprobable de un vistazo.
+    """
+    prompt = (
+        f"CANCIÓN: «{song['name']}» de {song['artist']}.\n\n"
+        f"PREGUNTA DEL USUARIO: {question}"
+    )
+    return await _run(prompt, INSTRUCCIONES_SIN_FUENTE)
+
+
+async def _run(prompt: str, instrucciones: str) -> dict:
     if not is_configured():
         raise GeneratorUnavailable("No hay GEMINI_API_KEY configurada.")
-
-    prompt = build_prompt(question, context, song)
 
     # El modelo de los ajustes primero, luego los de reserva sin repetir.
     modelos = [settings.GEMINI_MODEL] + [
@@ -111,7 +168,7 @@ async def generate(question: str, context: dict, song: dict) -> dict:
     ultimo_error = None
     for modelo in modelos:
         try:
-            texto = await _call(modelo, prompt)
+            texto = await _call(modelo, prompt, instrucciones)
         except (httpx.HTTPStatusError, httpx.RequestError, KeyError, IndexError) as exc:
             # Modelo cerrado, sin cuota, caído o respuesta rara: probamos el
             # siguiente en vez de romperle el chat al usuario.
@@ -124,15 +181,17 @@ async def generate(question: str, context: dict, song: dict) -> dict:
     raise GeneratorUnavailable(f"Ningún modelo respondió ({ultimo_error}).")
 
 
-async def _call(modelo: str, prompt: str) -> str:
+async def _call(modelo: str, prompt: str, instrucciones: str) -> str:
     payload = {
-        "system_instruction": {"parts": [{"text": INSTRUCCIONES}]},
+        "system_instruction": {"parts": [{"text": instrucciones}]},
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            # Temperatura baja: no queremos creatividad, queremos fidelidad al
-            # texto que le dimos.
-            "temperature": 0.2,
-            "maxOutputTokens": 800,
+            # Ni 0.2 (respuestas acartonadas, se limitaba a recitar el artículo)
+            # ni alta: 0.6 deja que interprete y escriba con soltura sin soltarse
+            # de los datos. La fidelidad la garantizan las instrucciones, no la
+            # temperatura.
+            "temperature": 0.6,
+            "maxOutputTokens": 1600,
         },
     }
 

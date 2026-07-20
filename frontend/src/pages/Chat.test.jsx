@@ -90,6 +90,44 @@ it("avisa cuando la fuente es el artículo del ARTISTA y no el de la canción", 
   );
 });
 
+it("separa lo que sale del artículo de la lectura propia de la IA", async () => {
+  api.askAboutSong.mockResolvedValue({
+    song: CANCION,
+    mode: "answer",
+    answer: "El artículo dice que trata de un amor tóxico.",
+    own_reading: "Yo creo que el ritmo esconde un lamento.",
+    source: { title: "La camisa negra", url: "https://es.wikipedia.org/wiki/La_camisa_negra" },
+    context_kind: "song",
+  });
+
+  renderAt("/chat?track=t1", { song: CANCION });
+  fireEvent.click(screen.getByRole("button", { name: "¿De qué trata esta canción?" }));
+
+  await waitFor(() =>
+    expect(screen.getByText(/Yo creo que el ritmo/)).toBeInTheDocument()
+  );
+  // La etiqueta es lo que hace comprensible la separación; sin ella las dos
+  // partes parecerían tener el mismo respaldo.
+  expect(screen.getByText(/esto no viene del artículo/)).toBeInTheDocument();
+});
+
+it("sin fuente marca la respuesta entera como no comprobable", async () => {
+  api.askAboutSong.mockResolvedValue({
+    song: CANCION,
+    mode: "unsourced",
+    answer: null,
+    own_reading: "No me suena esa canción, pero el artista es colombiano.",
+    message: "No encontré ninguna fuente sobre esta canción.",
+  });
+
+  renderAt("/chat?track=t1", { song: CANCION });
+  fireEvent.click(screen.getByRole("button", { name: "¿De qué trata esta canción?" }));
+
+  await waitFor(() => expect(screen.getByText(/No me suena esa canción/)).toBeInTheDocument());
+  expect(screen.getByText(/No encontré ninguna fuente/)).toBeInTheDocument();
+  expect(screen.queryByText(/Fuente:/)).not.toBeInTheDocument();
+});
+
 it("sin información no inventa: muestra el aviso y ninguna fuente", async () => {
   api.askAboutSong.mockResolvedValue({
     song: CANCION,
