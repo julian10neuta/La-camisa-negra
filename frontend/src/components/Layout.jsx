@@ -5,8 +5,6 @@
 // reproductor inferior.
 // El contenido de cada página se pasa como children y se pinta en el centro.
 //
-// Chat IA todavía no tiene página, así que se muestra pero inerte (sin enlace)
-// hasta que exista.
 // ----------------------------------------------------------------------------
 
 import { NavLink } from "react-router-dom";
@@ -65,7 +63,8 @@ export default function Layout({ children }) {
             <Item to="/search" icon="⌕" label="Búsqueda" />
             {/* Playlists deja de estar inerte: la pantalla llegó con develop. */}
             <Item to="/playlists" icon="≡" label="Playlists" />
-            <Item icon="💬" label="Chat IA" disabled />
+            {/* Chat IA deja de estar inerte: la pantalla llegó con feature/rag. */}
+            <Item to="/chat" icon="💬" label="Chat IA" />
             <Item to="/settings" icon="⚙" label="Ajustes" />
           </nav>
           <button className="btn-logout" onClick={logout} title="Cerrar sesión">

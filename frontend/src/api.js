@@ -252,6 +252,28 @@ export async function refreshRecommendations(opts) {
   return res.json();
 }
 
+// ─── Chat IA (RAG) ──────────────────────────────────────────────────────────
+
+// Pregunta sobre una canción. El backend busca el artículo de Wikipedia que
+// habla de ella y responde SOLO con eso, citando la fuente.
+//
+// Responde siempre 200 con un campo `mode` que dice qué pasó:
+//   "answer"         -> { answer, source: {title, url, lang}, context_kind }
+//   "no_context"     -> { message }  no hay información fiable de esa canción
+//   "retrieval_only" -> { message, excerpt, source }  hay fuente pero no
+//                       generador (falta la clave de Gemini o está caído)
+// Por eso la página nunca trata la respuesta como un error: los tres casos son
+// algo que mostrarle al usuario.
+export async function askAboutSong(spotifyTrackId, question) {
+  const res = await fetch(`${GATEWAY}/rag/ask`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ track_id: spotifyTrackId, question }),
+  });
+  await ensureOk(res);
+  return res.json();
+}
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 // Pide al backend la URL de autorización de Spotify para arrancar el OAuth.
