@@ -91,7 +91,9 @@ export default function Chat() {
     setError(null);
 
     try {
-      const data = await askAboutSong(song.spotify_track_id, limpia);
+      // Va también la metadata: si la canción salió del buscador todavía no
+      // está en nuestra base de datos, y sin esto el backend no sabría cuál es.
+      const data = await askAboutSong(song.spotify_track_id, limpia, song);
 
       // El backend nos devuelve el nombre real; aprovechamos para completarlo
       // si habíamos entrado solo con el id.

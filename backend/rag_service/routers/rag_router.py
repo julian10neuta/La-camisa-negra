@@ -6,21 +6,33 @@ from sqlalchemy.orm import Session
 from shared.database import get_db
 
 from ..dependencies import get_redis
-from ..repositories.song_repo import get_song_by_track_id
+from ..repositories.song_repo import resolve_song
 from ..services.answer_service import answer_question
 from ..services.retriever import retrieve_context
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
+# Nota sobre `name`/`artist`: son opcionales y sirven de respaldo cuando la
+# canción todavía no está en nuestra base de datos. Pasa constantemente, porque
+# la búsqueda del catálogo va directa a Spotify y NO persiste nada (solo se
+# guarda una canción cuando se crea una interacción con ella). Sin este respaldo,
+# preguntar sobre un resultado del buscador daba 404.
+NAME_HELP = "Nombre de la canción, por si aún no está en la base de datos"
+ARTIST_HELP = "Artista, por si la canción aún no está en la base de datos"
+
 
 class AskRequest(BaseModel):
     track_id: str = Field(..., description="spotify_track_id de la canción")
     question: str = Field(..., min_length=1, max_length=500)
+    name: str | None = Field(None, max_length=300, description=NAME_HELP)
+    artist: str | None = Field(None, max_length=300, description=ARTIST_HELP)
 
 
 @router.get("/context")
 async def get_context(
     track_id: str = Query(..., description="spotify_track_id de la canción"),
+    name: str | None = Query(None, description=NAME_HELP),
+    artist: str | None = Query(None, description=ARTIST_HELP),
     x_spotify_id: str = Header(...),
     db: Session = Depends(get_db),
     redis=Depends(get_redis),
@@ -39,11 +51,12 @@ async def get_context(
     Si Wikipedia no tiene nada fiable, responde 200 con `found: false` — no es
     un error, es la respuesta honesta.
     """
-    song = get_song_by_track_id(db, track_id)
+    song = resolve_song(db, track_id, name, artist)
     if song is None:
         raise HTTPException(
             status_code=404,
-            detail="Esa canción no está en la biblioteca de la aplicación.",
+            detail="No sé de qué canción se trata: no está en la base de datos "
+            "y no me mandaste nombre y artista.",
         )
 
     context = await retrieve_context(
@@ -81,13 +94,15 @@ async def ask(
       - `retrieval_only` : hay material pero no generador (falta la clave o
                            Gemini no responde); va un `excerpt` de la fuente.
 
-    Solo 404 si la canción no está en nuestra base de datos.
+    Solo 404 si no hay forma de saber de qué canción se habla (ni está en la
+    base de datos ni vinieron `name` y `artist`).
     """
-    song = get_song_by_track_id(db, body.track_id)
+    song = resolve_song(db, body.track_id, body.name, body.artist)
     if song is None:
         raise HTTPException(
             status_code=404,
-            detail="Esa canción no está en la biblioteca de la aplicación.",
+            detail="No sé de qué canción se trata: no está en la base de datos "
+            "y no me mandaste nombre y artista.",
         )
 
     result = await answer_question(song, body.question, redis=redis)

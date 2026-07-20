@@ -264,11 +264,20 @@ export async function refreshRecommendations(opts) {
 //                       generador (falta la clave de Gemini o está caído)
 // Por eso la página nunca trata la respuesta como un error: los tres casos son
 // algo que mostrarle al usuario.
-export async function askAboutSong(spotifyTrackId, question) {
+// `song` es opcional pero conviene mandarlo: la búsqueda del catálogo va
+// directa a Spotify y no guarda nada en nuestra base, así que una canción recién
+// buscada no existe ahí todavía. Mandando nombre y artista, el backend sabe
+// igual de qué canción hablamos en vez de responder 404.
+export async function askAboutSong(spotifyTrackId, question, song = null) {
   const res = await fetch(`${GATEWAY}/rag/ask`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify({ track_id: spotifyTrackId, question }),
+    body: JSON.stringify({
+      track_id: spotifyTrackId,
+      question,
+      name: song?.name ?? null,
+      artist: song?.artist ?? null,
+    }),
   });
   await ensureOk(res);
   return res.json();

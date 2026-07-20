@@ -65,7 +65,9 @@ it("llegando con la canción puesta, preguntar muestra la respuesta y CITA la fu
   fireEvent.submit(input.closest("form"));
 
   await waitFor(() => expect(screen.getByText("Trata de un amor tóxico.")).toBeInTheDocument());
-  expect(api.askAboutSong).toHaveBeenCalledWith("t1", "¿De qué trata?");
+  // La metadata viaja junto a la pregunta: si la canción salió del buscador aún
+  // no está en la base de datos y el backend no sabría cuál es.
+  expect(api.askAboutSong).toHaveBeenCalledWith("t1", "¿De qué trata?", CANCION);
 
   const enlace = screen.getByRole("link", { name: "La camisa negra" });
   expect(enlace).toHaveAttribute("href", "https://es.wikipedia.org/wiki/La_camisa_negra");
