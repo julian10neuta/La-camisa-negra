@@ -8,6 +8,7 @@ import Callback from './pages/Callback'  // <-- agrega este
 import PlaylistGallery from './pages/PlaylistGallery'
 import PlaylistDetail from './pages/PlaylistDetail'
 import Search from './pages/Search'
+import Chat from './pages/Chat'
 import Settings from './pages/Settings'
 import { PlayerProvider } from './player/PlayerContext'
 import { SettingsProvider } from './settings/SettingsContext'
@@ -34,6 +35,7 @@ function App() {
             <Route path="/home"      element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/search"    element={<Search />} />
+            <Route path="/chat"      element={<Chat />} />
             <Route path="/settings"  element={<Settings />} />
             <Route path="/playlists" element={<PlaylistGallery />} />
             <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />

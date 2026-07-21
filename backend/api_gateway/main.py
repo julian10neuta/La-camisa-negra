@@ -20,6 +20,7 @@ SERVICES = {
     "music": "http://music_service:8002",
     "dashboard": "http://dashboard_service:8005",
     "recommendation": "http://recommendation_service:8004",
+    "rag": "http://rag_service:8006",
 }
 
 
@@ -131,6 +132,25 @@ async def proxy_recommendation(path: str, request: Request):
     spotify_id = extract_spotify_id_from_request(request)
 
     target_url = f"{SERVICES['recommendation']}/recommendations/{path}"
+
+    return await proxy_request(
+        target_url,
+        request,
+        extra_headers={"X-Spotify-ID": spotify_id},
+    )
+
+
+# ─── Rutas protegidas: rag ───────────────────────────────────────────────────
+
+@app.api_route("/rag/{path:path}", methods=["GET", "POST"])
+async def proxy_rag(path: str, request: Request):
+    """
+    Rutas del rag_service (chat sobre canciones) — requieren JWT válido.
+    Mismo patrón que music: el gateway valida el token e inyecta X-Spotify-ID.
+    """
+    spotify_id = extract_spotify_id_from_request(request)
+
+    target_url = f"{SERVICES['rag']}/rag/{path}"
 
     return await proxy_request(
         target_url,

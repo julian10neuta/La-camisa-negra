@@ -281,10 +281,17 @@ export default function Search() {
                         >
                           ≡
                         </button>
+                        {/* Lleva al Chat con esta canción ya puesta. La metadata
+                            viaja en el state para que el Chat pueda mostrar el
+                            título sin pedirlo otra vez al backend. */}
                         <button
                           className="icon-btn"
-                          disabled
-                          title="Preguntar a la IA (próximamente)"
+                          onClick={() =>
+                            navigate(`/chat?track=${track.spotify_track_id}`, {
+                              state: { song: track },
+                            })
+                          }
+                          title="Preguntar a la IA sobre esta canción"
                           aria-label="Chat IA"
                         >
                           💬

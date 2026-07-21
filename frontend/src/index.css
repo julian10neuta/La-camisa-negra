@@ -1856,3 +1856,249 @@ html[data-contrast="high"] .aurora {
   color: var(--text-faint);
   white-space: nowrap;
 }
+
+/* ─── Chat IA ──────────────────────────────────────────────────────────────
+   Pantalla de preguntas sobre una canción. Sigue el mismo lenguaje visual que
+   el resto (superficies elevadas + borde), con dos diferencias a propósito:
+   las respuestas degradadas (sin fuente o sin generador) se marcan en tono de
+   aviso, y la cita de la fuente va siempre visible debajo de cada respuesta,
+   porque poder comprobarla es media gracia del asunto. */
+
+.chat-song {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.chat-song__art {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex: none;
+}
+
+.chat-song__art--empty {
+  display: grid;
+  place-items: center;
+  background: var(--bg-elev-2);
+  color: var(--text-faint);
+  font-size: 1.2rem;
+}
+
+.chat-song__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-song__name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-song__artist {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 240px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 12px;
+}
+
+.chat-empty {
+  color: var(--text-muted);
+  text-align: center;
+  margin: auto 0;
+}
+
+.chat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.chat-chip {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  padding: 7px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.chat-chip:hover {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+}
+
+.chat-msg {
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  max-width: 85%;
+  line-height: 1.5;
+}
+
+.chat-msg--user {
+  align-self: flex-end;
+  background: var(--accent-soft);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  color: var(--text);
+}
+
+.chat-msg--bot {
+  align-self: flex-start;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+/* Respuestas degradadas: no hay fuente, o no hubo generador. */
+.chat-msg--warn {
+  border-color: rgba(var(--accent-2-rgb), 0.45);
+}
+
+.chat-answer {
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.chat-loading {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.chat-excerpt {
+  margin: 10px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.chat-source {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-faint);
+}
+
+.chat-source a {
+  color: var(--text-muted);
+}
+
+.chat-source__note {
+  color: var(--text-faint);
+}
+
+.chat-error {
+  color: #f87171;
+  margin: 0 0 10px;
+}
+
+.chat-form {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-form .input {
+  flex: 1;
+}
+
+.chat-picker__hint {
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.chat-picker__list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.chat-picker__item:hover {
+  background: var(--bg-elev-2);
+}
+
+.chat-picker__item img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.chat-picker__item span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-picker__item em {
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: 0.88rem;
+}
+
+/* Lo que la IA aporta por su cuenta, separado de lo que sale del artículo.
+   Va con borde punteado y etiqueta a propósito: el usuario tiene que poder ver
+   de un vistazo qué puede comprobar y qué no. */
+.chat-reading {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--bg-rgb), 0.35);
+}
+
+.chat-reading__label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+
+.chat-aviso {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+}
